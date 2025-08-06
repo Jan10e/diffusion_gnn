@@ -124,3 +124,131 @@ Final integration and packaging
 - Github repo with CI/CD setup
 - blog post 
 
+
+
+## Idea for repo structure
+
+moldiff/
+├── README.md
+├── setup.py
+├── requirements.txt
+├── environment.yml
+├── .gitignore
+├── .github/
+│   └── workflows/
+│       ├── ci.yml
+│       └── tests.yml
+│
+├── moldiff/                          # Main package
+│   ├── __init__.py
+│   ├── core/                         # Core diffusion components
+│   │   ├── __init__.py
+│   │   ├── scheduler.py              # DDPMScheduler class
+│   │   ├── ddpm.py                   # Main DDPM class
+│   │   └── sampling.py               # Sampling algorithms
+│   │
+│   ├── models/                       # Neural network architectures
+│   │   ├── __init__.py
+│   │   ├── unet.py                   # U-Net for 1D/2D (Phase 1)
+│   │   ├── gnn/                      # GNN components (Phase 2)
+│   │   │   ├── __init__.py
+│   │   │   ├── layers.py             # GNN layers (GCN, GAT, etc.)
+│   │   │   ├── attention.py          # Attention mechanisms
+│   │   │   └── molecular_gnn.py      # Molecule-specific GNN
+│   │   └── diffusion_gnn.py          # Combined GNN+Diffusion (Phase 2)
+│   │
+│   ├── data/                         # Data handling
+│   │   ├── __init__.py
+│   │   ├── loaders.py                # Dataset classes
+│   │   ├── molecular/                # Molecular data specific
+│   │   │   ├── __init__.py
+│   │   │   ├── featurizers.py        # Atom/bond feature encoding
+│   │   │   ├── graph_utils.py        # SMILES -> graph conversion
+│   │   │   └── deepchem_integration.py
+│   │   └── synthetic.py              # Toy datasets (Phase 1)
+│   │
+│   ├── training/                     # Training components
+│   │   ├── __init__.py
+│   │   ├── trainer.py                # Main training class
+│   │   ├── losses.py                 # Loss functions
+│   │   └── callbacks.py              # Training callbacks
+│   │
+│   ├── evaluation/                   # Evaluation and metrics
+│   │   ├── __init__.py
+│   │   ├── metrics.py                # Molecular metrics (validity, etc.)
+│   │   ├── benchmarks.py             # Benchmark comparisons
+│   │   └── visualization.py          # Plotting and visualization
+│   │
+│   ├── chemistry/                    # Chemical constraints & validity
+│   │   ├── __init__.py
+│   │   ├── constraints.py            # Valency, chemical rules
+│   │   ├── validity.py               # Molecular validity checks
+│   │   └── rdkit_utils.py            # RDKit integration
+│   │
+│   └── utils/                        # Utilities
+│       ├── __init__.py
+│       ├── config.py                 # Configuration management
+│       ├── logging.py                # Logging setup
+│       └── io.py                     # Save/load utilities
+│
+├── experiments/                      # Experiment configurations
+│   ├── configs/                      # YAML/JSON config files
+│   │   ├── phase1_1d_ddpm.yaml
+│   │   ├── phase2_molecular_gnn.yaml
+│   │   └── phase3_moldiff.yaml
+│   ├── scripts/                      # Training scripts
+│   │   ├── train_phase1.py
+│   │   ├── train_molecular_gnn.py
+│   │   └── train_moldiff.py
+│   └── results/                      # Experiment outputs
+│       ├── phase1/
+│       ├── phase2/
+│       └── phase3/
+│
+├── notebooks/                        # Jupyter notebooks
+│   ├── 01_foundation_ddpm.ipynb      # Phase 1 exploration
+│   ├── 02_molecular_graphs.ipynb    # Graph representation
+│   ├── 03_gnn_exploration.ipynb     # GNN architectures
+│   ├── 04_diffusion_gnn.ipynb       # Combined model
+│   ├── 05_evaluation.ipynb          # Results analysis
+│   └── examples/                     # Usage examples
+│       ├── quickstart.ipynb
+│       ├── custom_datasets.ipynb
+│       └── property_conditioning.ipynb
+│
+├── tests/                            # Unit and integration tests
+│   ├── __init__.py
+│   ├── conftest.py                   # Pytest configuration
+│   ├── unit/                         # Unit tests
+│   │   ├── test_scheduler.py
+│   │   ├── test_ddpm.py
+│   │   ├── test_models.py
+│   │   ├── test_data_loaders.py
+│   │   └── test_gnn_layers.py
+│   ├── integration/                  # Integration tests
+│   │   ├── test_training_pipeline.py
+│   │   ├── test_deepchem_integration.py
+│   │   └── test_end_to_end.py
+│   └── fixtures/                     # Test data and fixtures
+│       ├── sample_molecules.smi
+│       └── test_configs.yaml
+│
+├── docs/                             # Documentation
+│   ├── source/
+│   │   ├── conf.py
+│   │   ├── index.rst
+│   │   ├── api.rst
+│   │   ├── tutorials/
+│   │   └── examples/
+│   └── build/
+│
+├── scripts/                          # Utility scripts
+│   ├── setup_environment.py
+│   ├── download_data.py
+│   └── benchmark.py
+│
+└── assets/                           # Static assets
+    ├── images/
+    ├── plots/
+    └── paper_figures/
+
