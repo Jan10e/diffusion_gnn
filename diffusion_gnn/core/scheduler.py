@@ -5,7 +5,8 @@ class DDPMScheduler:
     """
     Implements the noise scheduling from Ho (2020).
     This handles the forward process q(x_t | x_{t-1})
-    and related computations.
+    and related computations. The forward process is responsible
+    for the noise addition in diffusion models.
 
     The idea is to start with a clean image and iteratively add noise
     Therefore, beta_start < beta_end, where beta controls the noise level.
@@ -65,11 +66,14 @@ class DDPMScheduler:
         Returns:
             torch.Tensor: Sampled noisy image at time t.
         """
+        device = x_start.device
+        t = t.to(self.sqrt_alphas_cumprod.device)
+        sqrt_alphas_cumprod_t = self.sqrt_alphas_cumprod[t].reshape(-1, 1).to(device)
+        sqrt_one_minus_alphas_cumprod_t = self.sqrt_one_minus_alphas_cumprod[t].reshape(-1, 1).to(device)
+
         if noise is None:
             noise = torch.randn_like(x_start)
-
-        sqrt_alphas_cumprod_t = self.sqrt_alphas_cumprod[t].reshape(-1, 1)
-        sqrt_one_minus_alphas_cumprod_t = self.sqrt_one_minus_alphas_cumprod[t].reshape(-1, 1)
+        noise = noise.to(device)
 
         return sqrt_alphas_cumprod_t * x_start + sqrt_one_minus_alphas_cumprod_t * noise
 
