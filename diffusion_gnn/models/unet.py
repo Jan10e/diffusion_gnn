@@ -2,6 +2,7 @@ import math
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class SimpleUNet(nn.Module):
@@ -82,7 +83,7 @@ class SimpleUNet(nn.Module):
         )
 
         self.up2 = nn.Sequential(
-            nn.ConvTranspose1d(dim * 4, dim, 3, padding=1), # dim*4 due to skip connections
+            nn.Conv1d(dim * 4, dim, 3, padding=1), # dim*4 due to skip connections
             nn.GroupNorm(8, dim),
             nn.GELU(),
         )
@@ -102,10 +103,10 @@ class SimpleUNet(nn.Module):
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, channels, seq_length).
         """
-        # Ensure x is [batch_size, channels, seq_length]
-        if x.shape[1] != self.channels:
-            # Permute from [batch_size, seq_length, channels] to [batch_size, channels, seq_length]
-            x = x.permute(0, 2, 1)
+        # # Ensure x is [batch_size, channels, seq_length]
+        # if x.shape[1] != self.channels:
+        #     # Permute from [batch_size, seq_length, channels] to [batch_size, channels, seq_length]
+        #     x = x.permute(0, 2, 1)
 
         # Time embedding
         t = self.time_mlp(timestep)
@@ -124,8 +125,18 @@ class SimpleUNet(nn.Module):
 
         # Upsampling with skip connections (U-Net style)
         h = self.up1(h)
+
+        # Handle spatial dimension mismatch before skip connection
+        if h.shape[-1] != h2.shape[-1]:
+            h = F.interpolate(h, size=h2.shape[-1], mode='linear', align_corners=False)
+
         h = torch.cat([h, h2], dim=1)  # skip connection
         h = self.up2(h)
+
+        # Handle spatial dimension mismatch before second skip connection
+        if h.shape[-1] != h1.shape[-1]:
+            h = F.interpolate(h, size=h1.shape[-1], mode='linear', align_corners=False)
+
         h = torch.cat([h, h1], dim=1)  # skip connection
 
         return self.out(h)

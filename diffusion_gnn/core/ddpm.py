@@ -35,6 +35,9 @@ class DDPM:
 
         This is the simplified loss (Eq. 14) rather than the full variational bound
         """
+        # FIXME: debugging
+        print(f"DDPM train_loss input shape: {x_0.shape}")
+
         batch_size = x_0.shape[0]
 
         # Step 1: Sample t uniformly

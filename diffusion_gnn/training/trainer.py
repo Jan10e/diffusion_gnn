@@ -34,6 +34,16 @@ class DDPMTrainer:
         total_loss = 0
 
         for batch_idx, data in enumerate(dataloader):
+            # Unpack data from TensorDataset
+            if isinstance(data, (list, tuple)):
+                data = data[0]  # TensorDataset returns (tensor,)
+
+            # FIXME: debugging
+            print(f"Batch {batch_idx} shape: {data.shape}")
+            if batch_idx == 0:  # Just check first batch
+                break
+
+
             data = data.to(self.device)
 
             # Compute loss

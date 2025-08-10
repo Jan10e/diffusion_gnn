@@ -1,12 +1,12 @@
 # experiments/scripts/train_phase1.py
 import sys
 import os
+import yaml
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 
 import torch
-from torch.utils.data import DataLoader
-import yaml
+from torch.utils.data import DataLoader, TensorDataset
 
 from diffusion_gnn.core.ddpm import DDPM
 from diffusion_gnn.core.scheduler import DDPMScheduler
@@ -39,8 +39,10 @@ def main(config_path=None):
         n_samples=config['data']['n_samples'],
         seq_len=seq_len
     )
+    print(f"Dataset shape after creation: {dataset.shape}")
+
     dataloader = DataLoader(
-        dataset,
+        TensorDataset(dataset),
         batch_size=config['training']['batch_size'],
         shuffle=True
     )
