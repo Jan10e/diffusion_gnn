@@ -120,3 +120,6 @@ class DDPMScheduler:
         posterior_variance = self.posterior_variance[t].reshape(-1, 1)
 
         return posterior_mean, posterior_variance
+
+
+
