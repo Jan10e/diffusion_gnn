@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from diffusion_gnn.core.scheduler import DDPMScheduler
+from diffusion_gnn.core.noise_scheduler import DDPMScheduler
 
 class DDPM:
     """

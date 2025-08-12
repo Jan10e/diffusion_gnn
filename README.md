@@ -20,7 +20,7 @@ Additional papers:
 5. Molecular Graph Generation with Diffusion Models (Zhang et al., 2023)
   - Focus on: diffusion models for molecular graphs, comparison with other methods.
 
-Result of Phase 1:
+**[Result of Phase 1:
 - Implement basic DDPM in 1D/2D
 - Create molecular graph data loaders using DeepChem
 - Set up development environment with PyTorch, DeepChem, and RDKit.
@@ -30,7 +30,7 @@ Result of Phase 1:
 
 #### Week 3: Graph Representation & Data Pipeline
 
-Goal: Handle molecular grpahs properly
+Goal: Handle molecular graphs properly
 
 Tasks:
 - implement molecular graph representation using DeepChem.
@@ -49,7 +49,7 @@ Tasks:
 - Implement GNN layers (GCN, GAT, etc.) using PyTorch Geometric.
 - Add attention mechanisms for better node representation.
 - Handle variable graph sizes with proper masking
-- Test GNN on simple molecular property prediction
+- Test GNN on simple molecular property prediction]()**
 
 #### Week 5: Diffusion Model Integration
 Goal: Adapt DDPM to work with molecular graphs
