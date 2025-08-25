@@ -6,7 +6,7 @@ __version__ = "0.1.0"
 
 from .core.ddpm import DDPM
 from .core.noise_scheduler import DDPMScheduler
-from .models.unet import SimpleUNet
+from .models.old_unet import SimpleUNet
 
 __all__ = [
     "DDPM",

@@ -10,9 +10,9 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from diffusion_gnn.core.ddpm import DDPM
 from diffusion_gnn.core.noise_scheduler import DDPMScheduler
-from diffusion_gnn.models.unet import SimpleUNet
+from diffusion_gnn.models.old_unet import SimpleUNet
 from diffusion_gnn.data.synthetic import create_toy_dataset
-from diffusion_gnn.training.trainer_ddpm import DDPMTrainer
+from diffusion_gnn.training.old_trainer_ddpm import DDPMTrainer
 from diffusion_gnn.evaluation.visualization import visualize_final_samples, plot_loss_curve
 
 

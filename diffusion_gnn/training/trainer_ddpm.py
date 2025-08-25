@@ -1,55 +1,63 @@
 import torch
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
+from torch_geometric.data import Batch
 from tqdm import tqdm
-from diffusion_gnn.evaluation.visualization import visualize_training_progress, visualize_training_progress
+
+from diffusion_gnn.models.diffusion import MolecularDiffusionModel
+from diffusion_gnn.models.noise_scheduler import NoiseScheduler
+
 
 class DDPMTrainer:
     """
-    Trainer for Denoising Diffusion Probabilistic Model (DDPM).
+    Simple trainer - minimal changes from your original.
 
-    Args:
-        ddpm (DDPM): The DDPM model to train.
-        optimizer (torch.optim.Optimizer): Optimizer for training the DDPM.
-        device (torch.device): Device to run the training on (CPU or GPU).
-        config (dict, optional): Configuration parameters for training.
-
+    Key differences:
+    - model + scheduler instead of monolithic ddpm
+    - compute_loss() replaces ddmp.train_loss()
+    - That's it!
     """
-    def __init__(self, ddpm, optimizer, device, config=None):
-        self.ddpm = ddpm
+
+    def __init__(self, model, scheduler, optimizer, device, config=None):
+        self.model = model.to(device)
+        self.scheduler = scheduler.to(device)
         self.optimizer = optimizer
         self.device = device
         self.config = config or {}
 
-        # Training settings
-        self.log_interval = config.get('log_interval', 20)  # How often to log training progress
-        self.vis_interval = config.get('vis_interval', 20)  # How often to visualize training progress
-
-        # Tracking
+        # Same as your original
+        self.log_interval = config.get('log_interval', 20)
+        self.vis_interval = config.get('vis_interval', 20)
         self.losses = []
         self.epoch = 0
 
+    def compute_loss(self, batch):
+        """Replaces the old self.ddpm.train_loss(data) call."""
+        batch_size = batch.batch.max().item() + 1
+
+        # Sample timesteps and noise
+        t = torch.randint(0, self.scheduler.num_timesteps, (batch_size,), device=self.device)
+        noise = torch.randn_like(batch.x)
+
+        # Add noise and predict
+        x_noisy = self.scheduler.add_noise(batch.x, t[batch.batch], noise)
+        noise_pred = self.model(x_noisy, batch.edge_index, batch.edge_attr, batch.batch, t)
+
+        return F.mse_loss(noise_pred, noise)
+
     def train_epoch(self, dataloader):
-        """Train for one epoch on the given dataloader."""
-        self.ddpm.model.train()
+        """Almost identical to your original."""
+        self.model.train()
         total_loss = 0
 
-        for batch_idx, data in enumerate(dataloader):
-            # Unpack data from TensorDataset
-            if isinstance(data, (list, tuple)):
-                data = data[0]  # TensorDataset returns (tensor,)
+        for batch_idx, batch in enumerate(dataloader):
+            # Move to device
+            batch = batch.to(self.device)
 
-            # FIXME: debugging
-            print(f"Batch {batch_idx} shape: {data.shape}")
-            if batch_idx == 0:  # Just check first batch
-                break
+            # Compute loss (this is the main change!)
+            loss = self.compute_loss(batch)
 
-
-            data = data.to(self.device)
-
-            # Compute loss
-            loss = self.ddpm.train_loss(data)
-
-            # Backward pass
+            # Same backward pass as before
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
@@ -59,23 +67,31 @@ class DDPMTrainer:
         return total_loss / len(dataloader)
 
     def train(self, dataloader, num_epochs=None):
-        """Full training loop."""
+        """Identical to your original."""
         print(f"Starting training on {self.device}")
-        print(f"Model parameters: {sum(p.numel() for p in self.ddpm.model.parameters()):,}")
+        print(f"Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
 
         for epoch in range(num_epochs):
             avg_loss = self.train_epoch(dataloader)
             self.losses.append(avg_loss)
             self.epoch = epoch
 
-            # Logging
+            # Same logging as before
             if epoch % self.log_interval == 0:
                 print(f"Epoch [{epoch}/{num_epochs}], Loss: {avg_loss:.4f}")
 
-            # Visualization
+            # Same visualization as before
             if epoch % self.vis_interval == 0:
-                seq_len = dataloader.dataset.tensors[0].shape[-1]  # Infer seq_len
-                visualize_training_progress(self.ddpm, self.device, epoch, seq_len)
+                # You'll need to update this part for molecular graphs
+                pass
 
         print("Training completed!")
         return self.losses
+
+
+# Simple helper function
+def create_trainer(model, scheduler, lr=1e-4):
+    """Create trainer with default optimizer."""
+    from torch.optim import AdamW
+    optimizer = AdamW(model.parameters(), lr=lr)
+    return DDPMTrainer(model, scheduler, optimizer, torch.device('cuda'))
