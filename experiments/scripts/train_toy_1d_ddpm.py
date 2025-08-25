@@ -1,4 +1,4 @@
-# experiments/scripts/train_phase1.py
+# experiments/scripts/train_toy_1d_ddpm.py
 import sys
 import os
 import yaml
@@ -8,12 +8,12 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from diffusion_gnn.core.ddpm import DDPM
-from diffusion_gnn.core.noise_scheduler import DDPMScheduler
-from diffusion_gnn.models.old_unet import SimpleUNet
-from diffusion_gnn.data.synthetic import create_toy_dataset
-from diffusion_gnn.training.old_trainer_ddpm import DDPMTrainer
-from diffusion_gnn.evaluation.visualization import visualize_final_samples, plot_loss_curve
+from diffusion_1d.core.ddpm_1d import DDPM
+from diffusion_1d.core.noise_scheduler_1d import DDPMScheduler
+from diffusion_1d.models.unet_1d import SimpleUNet
+from diffusion_1d.data.synthetic import create_toy_dataset
+from diffusion_1d.training.trainer_ddpm_1d import DDPMTrainer
+from diffusion_1d.evaluation.visualization import visualize_final_samples, plot_loss_curve
 
 
 def load_config(config_path):

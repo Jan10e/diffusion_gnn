@@ -1,7 +1,5 @@
 import torch
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-from diffusion_gnn.evaluation.visualization import visualize_training_progress, visualize_training_progress
+from diffusion_1d.evaluation.visualization import visualize_training_progress
 
 class DDPMTrainer:
     """
