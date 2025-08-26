@@ -4,8 +4,8 @@ from torch.utils.data import DataLoader
 from torch_geometric.data import Batch
 from tqdm import tqdm
 
-from diffusion_gnn.models.diffusion import MolecularDiffusionModel
-from diffusion_gnn.models.noise_scheduler import NoiseScheduler
+from diffusion_gnn_2d.models.diffusion import MolecularDiffusionModel
+from diffusion_gnn_2d.models.noise_scheduler import NoiseScheduler
 
 
 class DDPMTrainer:
