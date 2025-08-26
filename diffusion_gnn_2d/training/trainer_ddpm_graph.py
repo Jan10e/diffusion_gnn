@@ -40,7 +40,7 @@ class DDPMTrainer:
         noise = torch.randn_like(batch.x)
 
         # Add noise and predict
-        x_noisy = self.scheduler.add_noise(batch.x, t[batch.batch], noise)
+        x_noisy = self.scheduler.q_sample_step(batch.x, t[batch.batch], noise)
         noise_pred = self.model(x_noisy, batch.edge_index, batch.edge_attr, batch.batch, t)
 
         return F.mse_loss(noise_pred, noise)
