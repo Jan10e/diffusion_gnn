@@ -123,7 +123,8 @@ class Qm9MolecularDataset:
                 logger.info(f"Processed {i}/{total_samples} molecules...")
 
             # The DeepChem dataset already contains an RDKit Mol object
-            mol = self.dataset.mols[i]
+            smiles = self.dataset.ids[i]
+            mol = Chem.MolFromSmiles(smiles)
             graph = self.mol_to_graph(mol)
             
             if graph is not None:

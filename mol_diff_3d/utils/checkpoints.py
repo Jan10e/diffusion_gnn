@@ -19,9 +19,6 @@ plt.style.use('default')
 sns.set_palette("husl")
 
 
-
-
-
 def log_model_info(model: torch.nn.Module, logger: logging.Logger = None) -> None:
     """
     Log detailed information about a model
@@ -55,25 +52,17 @@ def log_model_info(model: torch.nn.Module, logger: logging.Logger = None) -> Non
     logger.info(f"Model size: {model_size:.2f} MB")
 
 
-def save_training_checkpoint(model: torch.nn.Module,
-                             optimizer: torch.optim.Optimizer,
-                             scheduler: Optional[torch.optim.lr_scheduler._LRScheduler],
-                             epoch: int,
-                             loss: float,
-                             metrics: Dict,
-                             filepath: str) -> None:
-    """
-    Save a training checkpoint
+# Save and load checkpoint functions
+import torch
+import logging
+from typing import Dict, Optional
 
-    Args:
-        model: PyTorch model
-        optimizer: Optimizer
-        scheduler: Learning rate scheduler (optional)
-        epoch: Current epoch
-        loss: Current loss
-        metrics: Training metrics dictionary
-        filepath: Path to save checkpoint
-    """
+logger = logging.getLogger(__name__)
+
+
+def save_checkpoint(filepath: str, model: torch.nn.Module, optimizer: torch.optim.Optimizer,
+                    epoch: int, loss: float, metrics: Dict, scheduler=None) -> None:
+    """Save a training checkpoint."""
     checkpoint = {
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
@@ -81,7 +70,6 @@ def save_training_checkpoint(model: torch.nn.Module,
         'loss': loss,
         'metrics': metrics,
     }
-
     if scheduler is not None:
         checkpoint['scheduler_state_dict'] = scheduler.state_dict()
 
@@ -89,24 +77,11 @@ def save_training_checkpoint(model: torch.nn.Module,
     logger.info(f"Checkpoint saved to {filepath}")
 
 
-def load_training_checkpoint(filepath: str,
-                             model: torch.nn.Module,
-                             optimizer: Optional[torch.optim.Optimizer] = None,
-                             scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None) -> Dict:
-    """
-    Load a training checkpoint
-
-    Args:
-        filepath: Path to checkpoint file
-        model: PyTorch model
-        optimizer: Optimizer (optional)
-        scheduler: Learning rate scheduler (optional)
-
-    Returns:
-        Dictionary with checkpoint information
-    """
+def load_checkpoint(filepath: str, model: torch.nn.Module,
+                    optimizer: Optional[torch.optim.Optimizer] = None,
+                    scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None) -> Dict:
+    """Load a training checkpoint."""
     checkpoint = torch.load(filepath)
-
     model.load_state_dict(checkpoint['model_state_dict'])
 
     if optimizer is not None and 'optimizer_state_dict' in checkpoint:
