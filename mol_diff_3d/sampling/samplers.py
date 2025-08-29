@@ -68,17 +68,22 @@ class DDPMPsampler:
         """
         noise_pred_x, noise_pred_pos = model(x_t, edge_index, pos_t, batch, t)
 
-        alpha_t = 1 - self.betas[t]
+        # The fix: Ensure all per-node timesteps are broadcastable
+        alpha_t = (1 - self.betas[t]).unsqueeze(-1)
 
+        # This is the line that needed the fix
         mean_pos = (pos_t - (1 - alpha_t).sqrt() * noise_pred_pos) / alpha_t.sqrt()
-
         x_t_minus_1_pos = mean_pos
-        if t > 0:
-            x_t_minus_1_pos += torch.sqrt(self.betas[t]) * torch.randn_like(pos_t)
+        if t[0] > 0:  # Check the timestep of the first node
+            # The fix: Apply unsqueeze to the betas term as well
+            x_t_minus_1_pos += torch.sqrt(self.betas[t]).unsqueeze(-1) * torch.randn_like(pos_t)
 
-        mean_x = (x_t - (1 - alpha_t).sqrt() * noise_pred_x) / alpha_t.sqrt()
+        # Repeat for discrete features, which also need this fix
+        alpha_t_x = (1 - self.betas[t]).unsqueeze(-1)
+        mean_x = (x_t - (1 - alpha_t_x).sqrt() * noise_pred_x) / alpha_t_x.sqrt()
         x_t_minus_1_x = mean_x
-        if t > 0:
-            x_t_minus_1_x += torch.sqrt(self.betas[t]) * torch.randn_like(x_t)
+        if t[0] > 0:
+            # The fix: Apply unsqueeze to the betas term as well
+            x_t_minus_1_x += torch.sqrt(self.betas[t]).unsqueeze(-1) * torch.randn_like(x_t)
 
         return x_t_minus_1_x, x_t_minus_1_pos

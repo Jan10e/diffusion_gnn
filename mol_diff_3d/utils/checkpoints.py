@@ -81,7 +81,7 @@ def load_checkpoint(filepath: str, model: torch.nn.Module,
                     optimizer: Optional[torch.optim.Optimizer] = None,
                     scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None) -> Dict:
     """Load a training checkpoint."""
-    checkpoint = torch.load(filepath)
+    checkpoint = torch.load(filepath, map_location=torch.device('cpu'), weights_only=False)
     model.load_state_dict(checkpoint['model_state_dict'])
 
     if optimizer is not None and 'optimizer_state_dict' in checkpoint:

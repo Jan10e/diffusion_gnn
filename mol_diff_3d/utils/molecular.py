@@ -1,6 +1,6 @@
 import torch
 from rdkit import Chem
-from rdkit.Chem import AllChem
+from rdkit.Chem import AllChem, rdchem
 from typing import List, Optional, Tuple, Dict
 import numpy as np
 
@@ -27,44 +27,51 @@ def create_3d_molecule_from_positions(
 ) -> Optional[Chem.Mol]:
     """
     Creates an RDKit Mol object from atom types and 3D coordinates.
-    This is the core new function.
-    MolDiff Paper (Section 3.2): The model generates atom positions (p) and types (x).
-    We must infer connectivity (A) from these positions.
     """
+    if not atom_types or len(atom_types) < 2:
+        return None
+
+    # 1. Create a blank RDKit molecule and make it editable
     mol = Chem.Mol()
-    # 1. Add atoms to the molecule
+    editable_mol = Chem.EditableMol(mol)
+
+    # 2. Add atoms to the molecule using the editable object
     for atom_type in atom_types:
         atom = Chem.Atom(atom_type)
-        mol.AddAtom(atom)
+        editable_mol.AddAtom(atom)
 
-    # 2. Infer bonds based on inter-atomic distances
-    # A bond exists if the distance between two atoms is close to the sum of their covalent radii.
+    # 3. Infer bonds based on inter-atomic distances
+    # Use the length of atom_types to get the number of atoms
     for i in range(len(atom_types)):
         for j in range(i + 1, len(atom_types)):
-            # Calculate Euclidean distance between atom i and atom j
-            dist = torch.norm(positions[i] - positions[j]).item()
+            # Calculate Euclidean distance between atoms
+            dist = torch.linalg.norm(positions[i] - positions[j]).item()
 
             # Sum of covalent radii for atoms i and j
-            covalent_radii_sum = COVALENT_RADII[atom_types[i]] + COVALENT_RADII[atom_types[j]]
+            radius_i = COVALENT_RADII.get(atom_types[i], 0.7)
+            radius_j = COVALENT_RADII.get(atom_types[j], 0.7)
+            covalent_radii_sum = radius_i + radius_j
 
             # Check if distance is within tolerance
             if abs(dist - covalent_radii_sum) < bond_length_tolerance:
-                # Add a bond if the distance is plausible
-                mol.AddBond(i, j, Chem.rdchem.BondType.SINGLE)
+                # Add a bond using the editable object
+                editable_mol.AddBond(i, j, rdchem.BondType.SINGLE)
 
-    # 3. Create 3D conformer and assign positions
+    # 4. Convert back to a standard Mol object
+    mol = editable_mol.GetMol()
+
+    # 5. Create 3D conformer and assign positions
     conformer = Chem.Conformer(mol.GetNumAtoms())
     for i in range(mol.GetNumAtoms()):
         conformer.SetAtomPosition(i, positions[i].tolist())
     mol.AddConformer(conformer)
 
-    # 4. Sanitize and validate the molecule
+    # 6. Sanitize and validate the molecule
     try:
         Chem.SanitizeMol(mol)
         return mol
     except Chem.rdkit.Chem.rdchem.KekulizeException:
         return None
-
 
 def validate_molecule(mol: Optional[Chem.Mol]) -> bool:
     """Check if an RDKit Mol object is valid."""

@@ -24,8 +24,8 @@ class Qm9MolecularDataset:
         self.cache_graphs = cache_graphs
         self.dataset = self._load_dataset()
         self._graph_cache = {} if cache_graphs else None
-        
-        logger.info(f"Loaded QM9 dataset with {len(self.dataset)} molecules")
+
+        logger.info(f"Loaded {type(self.dataset).__name__} with {len(self.dataset)} molecules")
 
     def _load_dataset(self):
         """Load the QM9 dataset from DeepChem."""
@@ -41,8 +41,12 @@ class Qm9MolecularDataset:
         PyTorch Geometric Data object.
         """
         try:
+            # Check for None or invalid molecules first
+            if mol is None:
+                return None
+
             # Check cache first
-            if self._graph_cache is not None and mol.GetProp('_Name') in self._graph_cache:
+            if self._graph_cache is not None and mol.HasProp('_Name') and mol.GetProp('_Name') in self._graph_cache:
                 return self._graph_cache[mol.GetProp('_Name')]
 
             if mol.GetNumAtoms() > self.max_atoms:
@@ -56,7 +60,7 @@ class Qm9MolecularDataset:
             if mol.GetNumConformers() == 0:
                 logger.warning("Molecule has no conformer, skipping.")
                 return None
-            
+
             conformer = mol.GetConformer(0)
             positions = conformer.GetPositions()
 
@@ -81,7 +85,7 @@ class Qm9MolecularDataset:
             data.num_atoms = mol.GetNumAtoms()
 
             # Cache the result
-            if self.cache_graphs:
+            if self.cache_graphs and mol.HasProp('_Name'):
                 self._graph_cache[mol.GetProp('_Name')] = data
 
             return data
@@ -97,12 +101,12 @@ class Qm9MolecularDataset:
         """
         features = []
         # Atomic number one-hot encoded (up to 10 elements)
-        atomic_nums = [6, 7, 8, 9, 1, 17, 35, 53, 15, 16] # C, N, O, F, H, Cl, Br, I, P, S
+        atomic_nums = [6, 7, 8, 9, 1, 17, 35, 53, 15, 16]  # C, N, O, F, H, Cl, Br, I, P, S
         features.extend([1.0 if atom.GetAtomicNum() == num else 0.0 for num in atomic_nums])
-        
+
         # Total number of hydrogens (simplified to a single value)
         features.append(float(atom.GetTotalNumHs()))
-        
+
         return features
 
     def _get_atom_feature_dim(self) -> int:
@@ -122,11 +126,10 @@ class Qm9MolecularDataset:
             if i % 5000 == 0:
                 logger.info(f"Processed {i}/{total_samples} molecules...")
 
-            # The DeepChem dataset already contains an RDKit Mol object
-            smiles = self.dataset.ids[i]
-            mol = Chem.MolFromSmiles(smiles)
+            # The RDKit Mol objects are in the .X attribute for a DiskDataset with a 'Raw' featurizer
+            mol = self.dataset.X[i]
             graph = self.mol_to_graph(mol)
-            
+
             if graph is not None:
                 graphs.append(graph)
             else:
