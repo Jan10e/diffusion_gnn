@@ -3,7 +3,7 @@ from .gnn import MolecularGNN, GNNLayerFactory
 from .time_embedding import SinusoidalTimeEmbedding
 from .noise_scheduler import NoiseScheduler
 from .diffusion import MolecularDiffusionModel, NoisePredictor, TimeConditioner
-from .property_prediction import MolecularPropertyPredictor
+from diffusion_gnn_2d.utils.property_prediction import MolecularPropertyPredictor
 
 # Factory functions (simple functions, not classes)
 def create_molecular_gnn(atom_dim: int, bond_dim: int, **kwargs) -> MolecularGNN:

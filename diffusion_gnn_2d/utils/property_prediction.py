@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch_geometric.nn import global_mean_pool
 
-from .gnn import MolecularGNN
+from diffusion_gnn_2d.models.gnn import MolecularGNN
 
 
 class MolecularPropertyPredictor(nn.Module):
