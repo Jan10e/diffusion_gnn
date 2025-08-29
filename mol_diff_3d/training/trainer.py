@@ -10,7 +10,7 @@ from tqdm import tqdm
 from typing import List
 
 from ..models.diffusion import MolecularDiffusionModel
-from ..samplers.diffusion_samplers import DDPMQSampler
+from ..sampling.samplers import DDPMQSampler
 
 
 class DDPMTrainer:

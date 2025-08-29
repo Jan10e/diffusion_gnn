@@ -10,10 +10,7 @@ maintaining the overall geometric configuration.
 """
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch_geometric.nn import global_mean_pool
 from typing import Optional, Tuple
-import math
 
 
 class EquivariantMessagePassing(nn.Module):

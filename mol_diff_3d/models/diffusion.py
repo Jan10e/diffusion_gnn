@@ -1,13 +1,10 @@
 """
 The diffusion model for 3D molecular graphs.
-The diffusion model now nees to handle both discrete (atom and bond features) and continuous (3D positions) data.
+The diffusion model now needs to handle both discrete (atom and bond features) and continuous (3D positions) data.
 Therefore, the forward pass must now accept noisy 3D coordinates in addition to noisy features.
 """
-
-
 import torch
 import torch.nn as nn
-from torch_geometric.nn import global_mean_pool
 from typing import Optional, Tuple
 
 from .gnn import E3GNN
