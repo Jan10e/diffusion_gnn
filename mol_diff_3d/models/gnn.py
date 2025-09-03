@@ -22,12 +22,14 @@ class EquivariantMessagePassing(nn.Module):
     def __init__(self, in_feat_dim: int, hidden_dim: int, out_feat_dim: int):
         super().__init__()
         # Message passing network for node features
+        # phi_x computes the scalar messages for node feature updates
         self.phi_x = nn.Sequential(
             nn.Linear(in_feat_dim * 2 + 1, hidden_dim),  # +1 for distance
             nn.SiLU(),
             nn.Linear(hidden_dim, out_feat_dim)
         )
         # Network for updating coordinates
+        # phi_pos computes scalar weights that scale the relative position vectors.
         self.phi_pos = nn.Sequential(
             nn.Linear(in_feat_dim, hidden_dim),
             nn.SiLU(),
@@ -38,15 +40,26 @@ class EquivariantMessagePassing(nn.Module):
         torch.Tensor, torch.Tensor]:
         row, col = edge_index
         rel_pos = pos[row] - pos[col]
-        dist_sq = torch.sum(rel_pos ** 2, dim=-1, keepdim=True)
 
-        feat_in = torch.cat([x[row], x[col], dist_sq], dim=-1)
-        msg_x = self.phi_x(feat_in)
+        # Squared Euclidean distance
+        dist_sq = (rel_pos ** 2).sum(dim=-1, keepdim=True)
 
+        # Concatenate features of source and target nodes with distance
+        combined_features = torch.cat([x[row], x[col], dist_sq], dim=-1)
+
+        # Message for features
+        msg_x = self.phi_x(combined_features)
+
+        # Aggregation of feature messages
         aggregated_x = torch.zeros_like(x).scatter_add_(0, col.unsqueeze(-1).expand_as(msg_x), msg_x)
 
-        weight_pos = self.phi_pos(x[row])
+        # Weight for position updates
+        weight_pos = self.phi_pos(combined_features)
+
+        # Position update, analogous to Eq. 2 from the EGNN paper.
         pos_update = weight_pos * rel_pos
+
+        # Aggregation of position updates
         aggregated_pos = torch.zeros_like(pos).scatter_add_(0, col.unsqueeze(-1).expand_as(pos_update), pos_update)
 
         return aggregated_x, aggregated_pos
@@ -74,14 +87,13 @@ class E3GNN(nn.Module):
 
         self.out_feat_proj = nn.Linear(hidden_dim, out_feat_dim)
 
-    def forward(self, x: torch.Tensor, pos: torch.Tensor, edge_index: torch.Tensor) -> Tuple[
+    def forward(self, x: torch.Tensor, pos: torch.Tensor, edge_index: torch.Tensor, batch: torch.Tensor) -> Tuple[
         torch.Tensor, torch.Tensor]:
-        h = self.feat_proj(x)
+        x_proj = self.feat_proj(x)
 
         for layer in self.layers:
-            delta_h, delta_pos = layer(h, pos, edge_index)
-            h = h + delta_h
+            delta_x, delta_pos = layer(x_proj, pos, edge_index)
+            x_proj = x_proj + delta_x
             pos = pos + delta_pos
 
-        h_out = self.out_feat_proj(h)
-        return h_out, pos
+        return self.out_feat_proj(x_proj), pos

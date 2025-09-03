@@ -11,9 +11,12 @@ class NoiseScheduler:
         # Precompute all diffusion coefficients
         betas = torch.linspace(beta_start, beta_end, num_timesteps)
         alphas = 1.0 - betas
+
+        # alphas_cumprod (alpha_bar_t) is defined in Eq. 2 of the MolDiff paper
         alphas_cumprod = torch.cumprod(alphas, dim=0)
         alphas_cumprod_prev = torch.cat([torch.tensor([1.0]), alphas_cumprod[:-1]])
 
+        # Store precomputed tensors
         self.num_timesteps = num_timesteps
         self.betas = betas
         self.alphas = alphas
@@ -21,6 +24,8 @@ class NoiseScheduler:
         self.alphas_cumprod_prev = alphas_cumprod_prev
         self.sqrt_alphas_cumprod = torch.sqrt(alphas_cumprod)
         self.sqrt_one_minus_alphas_cumprod = torch.sqrt(1.0 - alphas_cumprod)
+
+        # The posterior variance is used in the reverse process, described in Sec. 3.2
         self.posterior_variance = betas * (1. - alphas_cumprod_prev) / (1. - alphas_cumprod)
 
     def to(self, device: Union[str, torch.device]):

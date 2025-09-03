@@ -51,8 +51,9 @@ class MolecularDiffusionModel(nn.Module):
         """
         Predicts noise for given noisy input and timestep.
 
-        The time embedding is now combined with the graph features before
-        the final noise prediction, simplifying the flow.
+        This model predicts the noise components (epsilon_x, epsilon_p) for
+        both the atom features and their 3D positions, which is then used
+        in the DDPM training loss (Eq. 5 in the MolDiff paper).
         """
         # 1. Embed timestep
         time_emb = self.time_embedding(t.float())

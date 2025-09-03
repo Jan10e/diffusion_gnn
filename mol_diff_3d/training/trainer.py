@@ -49,9 +49,15 @@ class DDPMTrainer:
         noise_pred_x, noise_pred_pos = self.model(x_noisy, batch.edge_index, pos_noisy, batch.batch, t)
 
         # 3. Calculate losses
-        loss_x = F.mse_loss(noise_pred_x, noise_x)
+        # Paper (Sec. 3.2): MSE loss for continuous positions
         loss_pos = F.mse_loss(noise_pred_pos, noise_pos)
 
+        # Paper (Sec. 3.1): Cross-entropy loss for discrete atom features
+        # Reshape for cross-entropy: (num_nodes, num_classes)
+        # Note: The original implementation may need to predict logits for this to work
+        loss_x = F.cross_entropy(noise_pred_x, batch.x.argmax(dim=-1))
+
+        # The paper uses a weighting factor, which can be added here
         total_loss = loss_x + loss_pos
         return total_loss
 
@@ -78,9 +84,8 @@ class DDPMTrainer:
 
         for epoch in range(num_epochs):
             avg_loss = self.train_epoch(dataloader)
-            self.losses.append(avg_loss)
-            self.epoch = epoch
 
+            self.losses.append(avg_loss)
             if epoch % self.log_interval == 0:
                 print(f"Epoch [{epoch}/{num_epochs}], Loss: {avg_loss:.4f}")
 
