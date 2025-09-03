@@ -5,12 +5,15 @@ It now correctly uses the DDPM Sampler classes for the diffusion process.
 
 import torch
 from typing import List, Optional, Tuple, Dict
+from torch_geometric.utils import to_undirected
+import logging
+import math
 
 # Assumes the directory structure has been updated as previously discussed
 from ..sampling.samplers import DDPMPsampler
 from ..utils.molecular import create_3d_molecule_from_positions, features_to_atom_types
 from rdkit import Chem
-import logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -47,30 +50,30 @@ def generate_molecules_from_model(
     x = torch.randn(total_nodes, atom_dim, device=device)
     pos = torch.randn(total_nodes, pos_dim, device=device)
 
-    # Create a complete graph structure for the maximum number of atoms
-    # This simplified approach allows the GNN to learn the relevant connections
-    # from the noisy positions
+    # Create a batch tensor to indicate which nodes belong to which molecule
     batch = torch.repeat_interleave(
         torch.arange(num_molecules, device=device), max_atoms
     )
 
-    edges = []
-    for mol_idx in range(num_molecules):
-        offset = mol_idx * max_atoms
-        for i in range(max_atoms):
-            for j in range(i + 1, max_atoms):
-                edges.extend([[offset + i, offset + j], [offset + j, offset + i]])
+    # Create a complete graph structure efficiently for the maximum number of atoms
+    # This replaces the manual Python loop with vectorized PyTorch operations.
+    # The new method is more scalable and avoids the GIL, making it faster.
+    source_nodes = torch.arange(max_atoms, device=device).unsqueeze(1).expand(-1, max_atoms).reshape(-1)
+    target_nodes = torch.arange(max_atoms, device=device).unsqueeze(0).expand(max_atoms, -1).reshape(-1)
+    base_edge_index = torch.stack([source_nodes, target_nodes], dim=0)
 
-    if edges:
-        edge_index = torch.tensor(edges, device=device).t().contiguous()
-    else:
-        edge_index = torch.empty((2, 0), device=device, dtype=torch.long)
+    # Handle multiple molecules by adding the batch offset
+    batch_offset = (torch.arange(num_molecules, device=device) * max_atoms).unsqueeze(0)
+    edge_index = base_edge_index.unsqueeze(-1) + batch_offset
+    edge_index = edge_index.transpose(1, 2).reshape(2, -1)
+
 
     # 1. Reverse diffusion loop
     with torch.no_grad():
         for t in reversed(range(p_sampler.num_timesteps)):
-            t_batch = torch.full((total_nodes,), t, device=device, dtype=torch.long)
-            # This is the key change: we delegate the step to the sampler
+            # The timestep needs to be a tensor of shape (num_molecules,)
+            t_batch = torch.full((num_molecules,), t, device=device, dtype=torch.long)
+            # We then pass this to the sampler, which handles broadcasting
             x, pos = p_sampler.p_sample_step(model, x, pos, edge_index, batch, t_batch)
 
     # 2. Convert final tensors to molecules
