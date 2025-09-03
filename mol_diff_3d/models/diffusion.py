@@ -26,7 +26,13 @@ class MolecularDiffusionModel(nn.Module):
         super().__init__()
 
         # GNN for feature and position processing
-        self.gnn = E3GNN(atom_dim, pos_dim, hidden_dim, hidden_dim, num_layers=num_gnn_layers)
+        self.gnn = E3GNN(
+            in_feat_dim=atom_dim,       # Only atom features: 128
+            pos_dim=pos_dim,            # Position: 3
+            hidden_dim=hidden_dim,      # Hidden: 128
+            out_feat_dim=hidden_dim,    # Output: 128
+            num_layers=num_gnn_layers
+        )
 
         # Time embedding
         self.time_embedding = SinusoidalTimeEmbedding(time_dim)
@@ -38,7 +44,7 @@ class MolecularDiffusionModel(nn.Module):
             nn.Dropout(0.1),
             nn.Linear(hidden_dim, hidden_dim),
             nn.SiLU(),
-            # Predicts noise for features and positions
+            # predict noise for both features and positions
             nn.Linear(hidden_dim, atom_dim + pos_dim)
         )
 
@@ -60,7 +66,7 @@ class MolecularDiffusionModel(nn.Module):
         time_emb = time_emb[batch]  # Broadcast to per-node
 
         # 2. Process molecular graph with E(3)-equivariant GNN
-        node_features, pos_pred = self.gnn(x, pos, edge_index)
+        node_features, pos_pred = self.gnn(x, pos, edge_index, batch)
 
         # 3. Combine graph features with time embedding
         combined_features = torch.cat([node_features, time_emb], dim=-1)

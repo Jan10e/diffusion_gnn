@@ -31,7 +31,7 @@ class EquivariantMessagePassing(nn.Module):
         # Network for updating coordinates
         # phi_pos computes scalar weights that scale the relative position vectors.
         self.phi_pos = nn.Sequential(
-            nn.Linear(in_feat_dim, hidden_dim),
+            nn.Linear(in_feat_dim * 2 + 1, hidden_dim),  # Same as phi_x input
             nn.SiLU(),
             nn.Linear(hidden_dim, 1)
         )
@@ -50,11 +50,11 @@ class EquivariantMessagePassing(nn.Module):
         # Message for features
         msg_x = self.phi_x(combined_features)
 
-        # Aggregation of feature messages
-        aggregated_x = torch.zeros_like(x).scatter_add_(0, col.unsqueeze(-1).expand_as(msg_x), msg_x)
-
         # Weight for position updates
         weight_pos = self.phi_pos(combined_features)
+
+        # Aggregation of feature messages
+        aggregated_x = torch.zeros_like(x).scatter_add_(0, col.unsqueeze(-1).expand_as(msg_x), msg_x)
 
         # Position update, analogous to Eq. 2 from the EGNN paper.
         pos_update = weight_pos * rel_pos
