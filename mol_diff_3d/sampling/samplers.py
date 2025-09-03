@@ -70,11 +70,11 @@ class DDPMPsampler:
         """
         Reverse DDPM sampling step.
         """
-        # Ensure model is in evaluation mode for sampling
-        model.eval()
-
         # Get noise prediction from the model for both features and positions
         noise_pred_x, noise_pred_pos = model(x_t, edge_index, pos_t, batch, t)
+
+        # Expand timestep parameter to match node-level tensors
+        t_expanded = t[batch]  # Broadcast from [num_molecules] to [num_nodes]
 
         # --- Positional sampling (Continuous Data) ---
         # The reverse process for continuous positions is a Gaussian.
@@ -83,20 +83,20 @@ class DDPMPsampler:
         # The mean of the reverse Gaussian distribution
         # Eq. 9 in DDPM paper (Ho et al.) and implied in MolDiff.
         mean_pos = (
-                1 / (1 - self.betas[t]).sqrt().unsqueeze(-1)
-                * (pos_t - self.betas[t].unsqueeze(-1) / (1 - self.alphas_cumprod[t]).sqrt().unsqueeze(
-            -1) * noise_pred_pos)
+                1 / (1 - self.betas[t_expanded]).sqrt().unsqueeze(-1)
+                * (pos_t - self.betas[t_expanded].unsqueeze(-1) /
+                   (1 - self.alphas_cumprod[t_expanded]).sqrt().unsqueeze(-1) * noise_pred_pos)
         )
 
         # The variance of the reverse Gaussian distribution
         # Precomputed in noise_scheduler.py as self.posterior_variance
-        variance_pos = self.posterior_variance[t].unsqueeze(-1)
+        variance_pos = self.posterior_variance[t_expanded].unsqueeze(-1)
 
         # If t > 0, we add noise to the mean to get the next state.
         if t[0] > 0:
             x_t_minus_1_pos = mean_pos + variance_pos.sqrt() * torch.randn_like(pos_t)
         else:
-            x_t_minus_1_pos = mean_pos  # No noise added at the final step (t=0)
+            x_t_minus_1_pos = mean_pos      # No noise added at the final step (t=0)
 
         # --- Feature Sampling (Discrete Data) ---
         # The reverse process for discrete features is a multinomial distribution.
