@@ -9,7 +9,7 @@ import torch
 import torch.nn.functional as F
 from typing import Optional, Tuple, Dict
 
-from .categorical_diffusion import CategoricalDiffusion
+from mol_diff_3d.models.categorical_diffusion import CategoricalDiffusion
 
 
 class ImprovedDDPMQSampler:

@@ -7,8 +7,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Optional, Tuple
 
-from .gnn import E3GNN
-from .time_embedding import SinusoidalTimeEmbedding
+from mol_diff_3d.models.gnn import E3GNN
+from mol_diff_3d.models.time_embedding import SinusoidalTimeEmbedding
 
 
 class MolecularDiffusionModel(nn.Module):

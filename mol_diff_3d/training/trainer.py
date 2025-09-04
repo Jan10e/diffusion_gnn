@@ -9,8 +9,8 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from typing import List, Dict, Tuple
 
-from .categorical_diffusion import CategoricalDiffusion, CategoricalNoiseScheduler
-from ..sampling.samplers import DDPMQSampler
+from mol_diff_3d.models.categorical_diffusion import CategoricalDiffusion, CategoricalNoiseScheduler
+from mol_diff_3d.sampling.samplers import ImprovedDDPMQSampler
 
 
 class ImprovedDDPMTrainer:
