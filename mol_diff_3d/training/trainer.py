@@ -1,93 +1,187 @@
 """
-Trainer for Denoising Diffusion Probabilistic Models (DDPM) applied to molecular graphs
-This is updated to handle the two-part loss function for both discrete features and continuous 3D positions.
+Improved trainer for MolDiff with joint atom-bond-position loss.
+Addresses the atom-bond inconsistency problem with proper categorical diffusion.
 """
 
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from typing import List
+from typing import List, Dict, Tuple
 
-from ..models.diffusion import MolecularDiffusionModel
+from .categorical_diffusion import CategoricalDiffusion, CategoricalNoiseScheduler
 from ..sampling.samplers import DDPMQSampler
 
 
-class DDPMTrainer:
+class ImprovedDDPMTrainer:
     """
-    Trains a MolecularDiffusionModel using the DDPM algorithm.
-    It orchestrates the training loop, loss calculation, and optimization.
+    Trainer for joint atom-bond-position diffusion model.
+    Key improvements:
+    1. Joint loss for atoms, bonds, and positions
+    2. Proper categorical diffusion for discrete features
+    3. Different noise schedules for atoms vs bonds
+    4. Bond predictor guidance loss
     """
 
-    def __init__(self, model, q_sampler, optimizer, device, config=None):
+    def __init__(self, model, bond_predictor, q_sampler, categorical_diffusion,
+                 optimizer, device, config=None):
         self.model = model.to(device)
+        self.bond_predictor = bond_predictor.to(device) if bond_predictor else None
         self.q_sampler = q_sampler
+        self.categorical_diffusion = categorical_diffusion
         self.optimizer = optimizer
         self.device = device
         self.config = config or {}
 
+        # Loss weights
+        self.atom_loss_weight = self.config.get('atom_loss_weight', 1.0)
+        self.pos_loss_weight = self.config.get('pos_loss_weight', 1.0)
+        self.bond_loss_weight = self.config.get('bond_loss_weight', 1.0)
+        self.guidance_loss_weight = self.config.get('guidance_loss_weight', 0.1)
+
         self.log_interval = self.config.get('log_interval', 20)
         self.losses = []
+        self.detailed_losses = {'atom': [], 'pos': [], 'bond': [], 'guidance': []}
         self.epoch = 0
 
-    def compute_loss(self, batch):
+    def compute_joint_loss(self, batch) -> Tuple[torch.Tensor, Dict[str, float]]:
         """
-        Calculates the combined loss for features and positions.
+        Compute joint loss for atoms, bonds, and positions.
         """
         batch_size = batch.batch.max().item() + 1
+        device = self.device
 
-        t = torch.randint(0, self.q_sampler.num_timesteps, (batch_size,), device=self.device)
+        # Sample different timesteps for atoms vs bonds (key MolDiff innovation)
+        t_atoms = torch.randint(0, self.q_sampler.num_timesteps, (batch_size,), device=device)
+        # Bonds get diffused earlier (faster schedule)
+        t_bonds = torch.randint(0, self.q_sampler.num_timesteps // 2, (batch_size,), device=device)
 
-        # 1. Add noise to atom features and positions
-        noise_x = torch.randn_like(batch.x)
-        x_noisy = self.q_sampler.q_sample_step(batch.x, t[batch.batch], noise_x)
+        # Extend timesteps to node/edge level
+        t_nodes = t_atoms[batch.batch]
+        t_edges = t_bonds[batch.batch[batch.edge_index[0]]]  # Use source node's batch
 
+        # --- Forward Diffusion ---
+
+        # 1. Add noise to positions (continuous)
         noise_pos = torch.randn_like(batch.pos)
-        pos_noisy = self.q_sampler.q_sample_pos_step(batch.pos, t[batch.batch], noise_pos)
+        pos_noisy = self.q_sampler.q_sample_pos_step(batch.pos, t_nodes, noise_pos)
 
-        # 2. Predict noise using the model
-        noise_pred_x, noise_pred_pos = self.model(x_noisy, batch.edge_index, pos_noisy, batch.batch, t)
+        # 2. Add noise to atom types (categorical diffusion)
+        x_noisy = self.categorical_diffusion.q_sample_atoms(batch.x, t_nodes)
 
-        # 3. Calculate losses
-        # Paper (Sec. 3.2): MSE loss for continuous positions
-        loss_pos = F.mse_loss(noise_pred_pos, noise_pos)
+        # 3. Add noise to bond types (categorical diffusion, faster schedule)
+        edge_attr_noisy = self.categorical_diffusion.q_sample_bonds(batch.edge_attr, t_edges)
 
-        # Paper (Sec. 3.1): Cross-entropy loss for discrete atom features
-        # Reshape for cross-entropy: (num_nodes, num_classes)
-        # Note: The original implementation may need to predict logits for this to work
-        loss_x = F.cross_entropy(noise_pred_x, batch.x.argmax(dim=-1))
+        # --- Model Prediction ---
+        atom_logits, pos_noise_pred, bond_logits = self.model(
+            x_noisy, batch.edge_index, edge_attr_noisy, pos_noisy, batch.batch, t_atoms
+        )
 
-        # The paper uses a weighting factor, which can be added here
-        total_loss = loss_x + loss_pos
-        return total_loss
+        # --- Loss Computation ---
 
-    def train_epoch(self, dataloader: DataLoader) -> float:
+        # 1. Position loss (MSE on noise)
+        loss_pos = F.mse_loss(pos_noise_pred, noise_pos)
+
+        # 2. Atom type loss (categorical)
+        loss_atoms = self.categorical_diffusion.compute_atom_loss(
+            atom_logits, batch.x, x_noisy, t_nodes
+        )
+
+        # 3. Bond type loss (categorical)
+        loss_bonds = self.categorical_diffusion.compute_bond_loss(
+            bond_logits, batch.edge_attr, edge_attr_noisy, t_edges
+        )
+
+        # 4. Bond predictor guidance loss (optional)
+        loss_guidance = torch.tensor(0.0, device=device)
+        if self.bond_predictor is not None:
+            # Predict bonds from current atom types and positions
+            predicted_bonds = self.bond_predictor(batch.x, batch.pos, batch.edge_index)
+            loss_guidance = F.cross_entropy(
+                predicted_bonds,
+                batch.edge_attr.argmax(dim=-1)
+            )
+
+        # Combine losses
+        total_loss = (
+            self.atom_loss_weight * loss_atoms +
+            self.pos_loss_weight * loss_pos +
+            self.bond_loss_weight * loss_bonds +
+            self.guidance_loss_weight * loss_guidance
+        )
+
+        # Return losses for logging
+        loss_dict = {
+            'atom': loss_atoms.item(),
+            'pos': loss_pos.item(),
+            'bond': loss_bonds.item(),
+            'guidance': loss_guidance.item()
+        }
+
+        return total_loss, loss_dict
+
+    def train_epoch(self, dataloader: DataLoader) -> Dict[str, float]:
+        """Train for one epoch with detailed loss tracking."""
         self.model.train()
-        total_loss = 0
+        if self.bond_predictor:
+            self.bond_predictor.train()
 
-        for batch in tqdm(dataloader):
+        total_losses = {'total': 0, 'atom': 0, 'pos': 0, 'bond': 0, 'guidance': 0}
+        num_batches = 0
+
+        for batch in tqdm(dataloader, desc=f"Epoch {self.epoch}"):
             batch = batch.to(self.device)
 
-            loss = self.compute_loss(batch)
+            # Compute joint loss
+            total_loss, loss_dict = self.compute_joint_loss(batch)
 
+            # Backward pass
             self.optimizer.zero_grad()
-            loss.backward()
+            total_loss.backward()
+
+            # Gradient clipping for stability
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+            if self.bond_predictor:
+                torch.nn.utils.clip_grad_norm_(self.bond_predictor.parameters(), max_norm=1.0)
+
             self.optimizer.step()
 
-            total_loss += loss.item()
+            # Accumulate losses
+            total_losses['total'] += total_loss.item()
+            for key, value in loss_dict.items():
+                total_losses[key] += value
+            num_batches += 1
 
-        return total_loss / len(dataloader)
+        # Average losses over epoch
+        for key in total_losses:
+            total_losses[key] /= num_batches
 
-    def train(self, dataloader, num_epochs=None):
-        print(f"Starting training on {self.device}")
+        # Store losses for tracking
+        self.losses.append(total_losses['total'])
+        for key in self.detailed_losses:
+            self.detailed_losses[key].append(total_losses[key])
+
+        return total_losses
+
+    def train(self, dataloader: DataLoader, num_epochs: int):
+        """Main training loop with detailed logging."""
+        print(f"Starting joint atom-bond-position training on {self.device}")
         print(f"Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
+        if self.bond_predictor:
+            print(f"Bond predictor parameters: {sum(p.numel() for p in self.bond_predictor.parameters()):,}")
 
         for epoch in range(num_epochs):
-            avg_loss = self.train_epoch(dataloader)
+            self.epoch = epoch
+            epoch_losses = self.train_epoch(dataloader)
 
-            self.losses.append(avg_loss)
             if epoch % self.log_interval == 0:
-                print(f"Epoch [{epoch}/{num_epochs}], Loss: {avg_loss:.4f}")
+                print(f"Epoch [{epoch}/{num_epochs}]:")
+                print(f"  Total Loss: {epoch_losses['total']:.4f}")
+                print(f"  Atom Loss: {epoch_losses['atom']:.4f}")
+                print(f"  Position Loss: {epoch_losses['pos']:.4f}")
+                print(f"  Bond Loss: {epoch_losses['bond']:.4f}")
+                if self.bond_predictor:
+                    print(f"  Guidance Loss: {epoch_losses['guidance']:.4f}")
 
-        print("Training completed!")
-        return self.losses
+        print("Joint training completed!")
+        return self.losses, self.detailed_losses

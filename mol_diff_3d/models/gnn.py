@@ -1,99 +1,124 @@
 """
-E(3)-Equivariant Graph Neural Network for Molecular Generation.
-Different than in the 2D Diffusion+GNN, we can't use the GAT, GIN, or GCN layers, as these are not
-able to handle 3D coordinates and maintain equivariance.
-Therefore, we need to replace the standard GNN layers with E(3)-equivariant layers.
-The EGNN architecture is described in Satorras et al, in which the key equation is the message passing update:
-x'_i = x_i + Σ_j (m_ij * (x_i - x_j))  -> a simplified form of Eqn 2 in the paper.
-This eqn ensures that the change in a node's position is a weighted sum of vectors pointing to its neighbors,
-maintaining the overall geometric configuration.
+Bond-aware E(3)-Equivariant Graph Neural Network for MolDiff.
+Explicit bond feature handling in message passing.
 """
 import torch
 import torch.nn as nn
 from typing import Optional, Tuple
 
 
-class EquivariantMessagePassing(nn.Module):
+class BondAwareMessagePassing(nn.Module):
     """
-    Core component of an Equivariant Graph Neural Network (EGNN).
-    This module handles message passing for both features and 3D coordinates.
+    E(3)-equivariant message passing that explicitly handles bond features.
+    This addresses the atom-bond inconsistency problem.
     """
 
-    def __init__(self, in_feat_dim: int, hidden_dim: int, out_feat_dim: int):
+    def __init__(self, in_feat_dim: int, bond_feat_dim: int, hidden_dim: int, out_feat_dim: int):
         super().__init__()
-        # Message passing network for node features
-        # phi_x computes the scalar messages for node feature updates
+
+        # Node feature update network (phi_x)
+        # Input: [source_node, target_node, edge_features, distance]
         self.phi_x = nn.Sequential(
-            nn.Linear(in_feat_dim * 2 + 1, hidden_dim),  # +1 for distance
+            nn.Linear(in_feat_dim * 2 + bond_feat_dim + 1, hidden_dim),
             nn.SiLU(),
             nn.Linear(hidden_dim, out_feat_dim)
         )
-        # Network for updating coordinates
-        # phi_pos computes scalar weights that scale the relative position vectors.
+
+        # Position update network (phi_pos)
         self.phi_pos = nn.Sequential(
-            nn.Linear(in_feat_dim * 2 + 1, hidden_dim),  # Same as phi_x input
+            nn.Linear(in_feat_dim * 2 + bond_feat_dim + 1, hidden_dim),
             nn.SiLU(),
             nn.Linear(hidden_dim, 1)
         )
 
-    def forward(self, x: torch.Tensor, pos: torch.Tensor, edge_index: torch.Tensor) -> Tuple[
-        torch.Tensor, torch.Tensor]:
-        row, col = edge_index
-        rel_pos = pos[row] - pos[col]
+        # Edge feature update network (phi_edge)
+        self.phi_edge = nn.Sequential(
+            nn.Linear(in_feat_dim * 2 + bond_feat_dim + 1, hidden_dim),
+            nn.SiLU(),
+            nn.Linear(hidden_dim, bond_feat_dim)
+        )
 
-        # Squared Euclidean distance
+    def forward(self, x: torch.Tensor, pos: torch.Tensor,
+                edge_index: torch.Tensor, edge_attr: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        row, col = edge_index
+
+        # Calculate relative positions and distances
+        rel_pos = pos[row] - pos[col]
         dist_sq = (rel_pos ** 2).sum(dim=-1, keepdim=True)
 
-        # Concatenate features of source and target nodes with distance
-        combined_features = torch.cat([x[row], x[col], dist_sq], dim=-1)
+        # Combine all features for message passing
+        combined_features = torch.cat([
+            x[row],         # source node features
+            x[col],         # target node features
+            edge_attr,      # bond features
+            dist_sq         # squared distance
+        ], dim=-1)
 
-        # Message for features
+        # Update node features
         msg_x = self.phi_x(combined_features)
+        aggregated_x = torch.zeros_like(x).scatter_add_(
+            0, col.unsqueeze(-1).expand_as(msg_x), msg_x
+        )
 
-        # Weight for position updates
+        # Update positions
         weight_pos = self.phi_pos(combined_features)
-
-        # Aggregation of feature messages
-        aggregated_x = torch.zeros_like(x).scatter_add_(0, col.unsqueeze(-1).expand_as(msg_x), msg_x)
-
-        # Position update, analogous to Eq. 2 from the EGNN paper.
         pos_update = weight_pos * rel_pos
+        aggregated_pos = torch.zeros_like(pos).scatter_add_(
+            0, col.unsqueeze(-1).expand_as(pos_update), pos_update
+        )
 
-        # Aggregation of position updates
-        aggregated_pos = torch.zeros_like(pos).scatter_add_(0, col.unsqueeze(-1).expand_as(pos_update), pos_update)
+        # Update edge features
+        edge_update = self.phi_edge(combined_features)
 
-        return aggregated_x, aggregated_pos
+        return aggregated_x, aggregated_pos, edge_update
 
 
 class E3GNN(nn.Module):
     """
-    An E(3)-equivariant Graph Neural Network for molecular generation.
-    This model explicitly handles 3D positions and is invariant to translations and rotations.
+    Bond-aware E(3)-equivariant Graph Neural Network.
+    Processes atoms, positions, and bonds jointly.
     """
 
-    def __init__(self, in_feat_dim: int, pos_dim: int, hidden_dim: int, out_feat_dim: int, num_layers: int = 4):
+    def __init__(self, in_feat_dim: int, bond_feat_dim: int, pos_dim: int,
+                 hidden_dim: int, out_feat_dim: int, num_layers: int = 4):
         super().__init__()
 
         self.in_feat_dim = in_feat_dim
+        self.bond_feat_dim = bond_feat_dim
         self.pos_dim = pos_dim
         self.hidden_dim = hidden_dim
 
+        # Project input features to hidden dimension
         self.feat_proj = nn.Linear(in_feat_dim, hidden_dim)
+        self.bond_proj = nn.Linear(bond_feat_dim, bond_feat_dim)
 
+        # Bond-aware message passing layers
         self.layers = nn.ModuleList([
-            EquivariantMessagePassing(hidden_dim, hidden_dim, hidden_dim)
+            BondAwareMessagePassing(hidden_dim, bond_feat_dim, hidden_dim, hidden_dim)
             for _ in range(num_layers)
         ])
 
+        # Output projections
         self.out_feat_proj = nn.Linear(hidden_dim, out_feat_dim)
+        self.out_bond_proj = nn.Linear(bond_feat_dim, bond_feat_dim)
 
-    def forward(self, x: torch.Tensor, pos: torch.Tensor, edge_index: torch.Tensor, batch: torch.Tensor) -> Tuple[
-        torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, pos: torch.Tensor,
+                edge_index: torch.Tensor, edge_attr: torch.Tensor,
+                batch: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+
+        # Project input features
         x_proj = self.feat_proj(x)
+        edge_attr_proj = self.bond_proj(edge_attr)
 
+        # Apply message passing layers
         for layer in self.layers:
-            delta_x, delta_pos = layer(x_proj, pos, edge_index)
+            delta_x, delta_pos, edge_update = layer(x_proj, pos, edge_index, edge_attr_proj)
             x_proj = x_proj + delta_x
             pos = pos + delta_pos
+            edge_attr_proj = edge_update  # Direct update for edge features
 
-        return self.out_feat_proj(x_proj), pos
+        # Final projections
+        final_x = self.out_feat_proj(x_proj)
+        final_edge_attr = self.out_bond_proj(edge_attr_proj)
+
+        return final_x, final_edge_attr, pos
