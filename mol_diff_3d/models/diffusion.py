@@ -125,18 +125,18 @@ class BondPredictor(nn.Module):
     This is used to guide atom generation to be more chemically valid.
     """
 
-    def __init__(self, atom_dim: int, pos_dim: int, hidden_dim: int = 128):
+    def __init__(self, atom_dim: int, pos_dim: int, hidden_dim: int = 128, bond_dim: int = 7):
         super().__init__()
 
         self.atom_embedding = nn.Linear(atom_dim, hidden_dim)
         self.pos_embedding = nn.Linear(pos_dim, hidden_dim)
 
         self.bond_net = nn.Sequential(
-            nn.Linear(hidden_dim * 2 + 1, hidden_dim),  # +1 for distance
+            nn.Linear(hidden_dim * 2 + 1, hidden_dim),
             nn.SiLU(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.SiLU(),
-            nn.Linear(hidden_dim, 4)  # 4 bond types: none, single, double, triple
+            nn.Linear(hidden_dim, bond_dim)
         )
 
     def forward(self, x: torch.Tensor, pos: torch.Tensor,
