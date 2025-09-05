@@ -96,22 +96,22 @@ class ImprovedDDPMTrainer:
         loss_guidance = torch.tensor(0.0, device=device)
         if self.bond_predictor is not None:
 
-            # FIXME: print atom and bond indices to debug out-of-range errors on CUDA
-            # Debug: Print atom and bond indices before using as class indices
-            print("Atom indices:", batch.x.argmax(dim=-1).min().item(), batch.x.argmax(dim=-1).max().item())
-            print("Bond indices:", batch.edge_attr.argmax(dim=-1).min().item(),
-                  batch.edge_attr.argmax(dim=-1).max().item())
+            # # FIXME: print atom and bond indices to debug out-of-range errors on CUDA
+            # # Debug: Print atom and bond indices before using as class indices
+            # print("Atom indices:", batch.x.argmax(dim=-1).min().item(), batch.x.argmax(dim=-1).max().item())
+            # print("Bond indices:", batch.edge_attr.argmax(dim=-1).min().item(),
+            #       batch.edge_attr.argmax(dim=-1).max().item())
 
-            # FIXME: Ensure bond target indices are within valid range for CUDA
-            # Predict bonds from current atom types and positions
-            predicted_bonds = self.bond_predictor(batch.x, batch.pos, batch.edge_index)
-
-            # Check shapes and types before loss calculation
-            print("predicted_bonds shape:", predicted_bonds.shape)
-            print("bond target shape:", batch.edge_attr.argmax(dim=-1).shape)
-            print("bond target dtype:", batch.edge_attr.argmax(dim=-1).dtype)
-            print("bond target min/max:", batch.edge_attr.argmax(dim=-1).min().item(),
-                  batch.edge_attr.argmax(dim=-1).max().item())
+            # # FIXME: Ensure bond target indices are within valid range for CUDA
+            # # Predict bonds from current atom types and positions
+            # predicted_bonds = self.bond_predictor(batch.x, batch.pos, batch.edge_index)
+            #
+            # # Check shapes and types before loss calculation
+            # print("predicted_bonds shape:", predicted_bonds.shape)
+            # print("bond target shape:", batch.edge_attr.argmax(dim=-1).shape)
+            # print("bond target dtype:", batch.edge_attr.argmax(dim=-1).dtype)
+            # print("bond target min/max:", batch.edge_attr.argmax(dim=-1).min().item(),
+            #       batch.edge_attr.argmax(dim=-1).max().item())
 
             # Predict bonds from current atom types and positions
             predicted_bonds = self.bond_predictor(batch.x, batch.pos, batch.edge_index)

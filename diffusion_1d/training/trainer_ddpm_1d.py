@@ -36,8 +36,8 @@ class DDPMTrainer:
             if isinstance(data, (list, tuple)):
                 data = data[0]  # TensorDataset returns (tensor,)
 
-            # FIXME: debugging
-            print(f"Batch {batch_idx} shape: {data.shape}")
+            # # FIXME: debugging
+            # print(f"Batch {batch_idx} shape: {data.shape}")
             if batch_idx == 0:  # Just check first batch
                 break
 
