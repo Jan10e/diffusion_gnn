@@ -17,17 +17,18 @@ class ImprovedDDPMQSampler:
     Enhanced forward diffusion process with categorical support.
     """
 
-    def __init__(self, scheduler_params: Dict, categorical_diffusion: CategoricalDiffusion):
+    def __init__(self, scheduler_params: Dict, atom_transition, bond_transition):
         self.alphas_cumprod = scheduler_params['alphas_cumprod']
         self.sqrt_alphas_cumprod = scheduler_params['sqrt_alphas_cumprod']
         self.sqrt_one_minus_alphas_cumprod = scheduler_params['sqrt_one_minus_alphas_cumprod']
         self.num_timesteps = len(self.alphas_cumprod)
-        self.categorical_diffusion = categorical_diffusion
+        self.atom_transition = atom_transition
+        self.bond_transition = bond_transition
 
     def q_sample_step(self, x_start: torch.Tensor, t: torch.Tensor,
                       noise: Optional[torch.Tensor] = None) -> torch.Tensor:
         """Forward diffusion for atom types using categorical diffusion."""
-        return self.categorical_diffusion.q_sample_atoms(x_start, t)
+        return self.atom_transition.q_sample(x_start, t)
 
     def q_sample_pos_step(self, pos_start: torch.Tensor, t: torch.Tensor,
                           noise: Optional[torch.Tensor] = None) -> torch.Tensor:
@@ -46,7 +47,7 @@ class ImprovedDDPMQSampler:
 
     def q_sample_bonds_step(self, edge_attr_start: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         """Forward diffusion for bond types using categorical diffusion."""
-        return self.categorical_diffusion.q_sample_bonds(edge_attr_start, t)
+        return self.bond_transition.q_sample(edge_attr_start, t)
 
 
 class ImprovedDDPMPsampler:

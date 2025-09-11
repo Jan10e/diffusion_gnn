@@ -7,6 +7,8 @@ import torch.nn.functional as F
 import numpy as np
 from typing import Dict, Tuple
 
+from mol_diff_3d.models.transitions import GeneralCategoricalTransition, ContinuousTransition, get_beta_schedule
+
 
 class CategoricalNoiseScheduler:
     """

@@ -33,6 +33,7 @@ class ImprovedDDPMTrainer:
         self.optimizer = optimizer
         self.device = device
         self.config = config or {}
+        self.scalar = torch.cuda.amp.GradScaler(enabled=True)
 
         # Loss weights
         self.atom_loss_weight = self.config.get('atom_loss_weight', 1.0)
@@ -74,9 +75,10 @@ class ImprovedDDPMTrainer:
         edge_attr_noisy = self.categorical_diffusion.q_sample_bonds(batch.edge_attr, t_edges)
 
         # --- Model Prediction ---
-        atom_logits, pos_noise_pred, bond_logits = self.model(
-            x_noisy, batch.edge_index, edge_attr_noisy, pos_noisy, batch.batch, t_atoms
-        )
+        with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=True):
+            atom_logits, pos_noise_pred, bond_logits = self.model(
+                x_noisy, batch.edge_index, edge_attr_noisy, pos_noisy, batch.batch, t_atoms
+            )
 
         # --- Loss Computation ---
 
