@@ -1,30 +1,18 @@
----------------------------------------------------------------------------
-AttributeError                            Traceback (most recent call last)
-Cell In[6], line 18
-      8 # Option 1: Train from scratch (reduced epochs for demo)
-      9 trainer = EDMTrainer(
-     10     model=model,
-     11     train_data=train_data,
-   (...)     15     save_dir='../results/edm_3d_small/'
-     16 )
----> 18 history = trainer.train()
-     20 # Plot training curves
-     21 plt.figure(figsize=(12, 4))
+A problem with training and validation:
 
-File ~/Projects/diffusion_gnn/edm_3d/training/trainer.py:105, in EDMTrainer.train(self)
-    102 print(f"\nEpoch {epoch + 1}/{self.num_epochs}")
-    104 # Train
---> 105 train_loss = self.train_epoch(train_loader)
-    106 self.history['train_loss'].append(train_loss)
-    108 # Validate
+ERROR:edm_3d.training.trainer:Error in validation batch: indices should be either on cpu or on the same device as the indexed tensor (cpu)
+Validating:  97%|█████████▋| 61/63 [00:45<00:01,  1.11it/s]WARNING:edm_3d.data.qm9_loader:Failed to process molecule 1966: [H]C#C[C@@]1([H])N([H])[C@]12[C@@]1([H])C([H])([H])[C@]2([H])C1([H])[H]
+ERROR:edm_3d.training.trainer:Error in validation batch: indices should be either on cpu or on the same device as the indexed tensor (cpu)
+Validating:  98%|█████████▊| 62/63 [00:46<00:00,  1.25it/s]WARNING:edm_3d.data.qm9_loader:Failed to process molecule 1989: [H]C([H])([H])[C@@]1([H])[C@@]2([H])O[C@@]([H])(C([H])([H])[H])[C@]21C([H])([H])[H]
+ERROR:edm_3d.training.trainer:Error in validation batch: indices should be either on cpu or on the same device as the indexed tensor (cpu)
+Validating: 100%|██████████| 63/63 [00:46<00:00,  1.35it/s]
+INFO:edm_3d.models.edm:Model saved to ../experiments/results/edm_3d_small/edm_final.pth
+INFO:edm_3d.training.trainer:Training complete!
+Train Loss: 0.0000 | Val Loss: 0.0000
+  → Checkpoint saved: checkpoint_epoch_10.pth
 
-File ~/Projects/diffusion_gnn/edm_3d/training/trainer.py:147, in EDMTrainer.train_epoch(self, dataloader)
-    145 # Random timestep
-    146 batch_size = batch_indices.max().item() + 1
---> 147 t = torch.randint(0, self.model.diffusion.num_steps, (batch_size,), device=self.device)
-    149 # Forward diffusion (add noise)
-    150 noisy_coords, noisy_atoms, noise_coords, noise_atoms = self.model.diffusion.forward_diffusion(
-    151     coords, atom_types, t[batch_indices]
-    152 )
 
-AttributeError: 'EDM' object has no attribute 'diffusion'
+ Check following for whether GPU is used:
+ - models/edm.py
+    - training/trainer.py
+    - generation/sampler.py

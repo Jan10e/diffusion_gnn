@@ -14,6 +14,10 @@ from edm_3d.core.diffusion_process import DiffusionProcess
 logger = logging.getLogger(__name__)
 
 
+if device is None:
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
 class EDMCore(nn.Module):
     """
     Core EDM model (just the neural network part)
