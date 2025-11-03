@@ -1,50 +1,52 @@
-import torch
-import torch.nn as nn
 import numpy as np
-from typing import Tuple, Optional
-import deepchem as dc
-from deepchem.models.torch_models import TorchModel
+import torch
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 
-
-def visualize_molecule(coords: torch.Tensor, atom_types: torch.Tensor, idx: int = 0):
+def visualize_molecule(coords, atom_types, idx: int = 0, title: str = None, ax=None):
     """
-    Visualize a generated molecule
+    Robust visualize_molecule: accepts either
+      - batched coords (B, N, 3) and atom_types (B, N)
+      - single coords (N, 3) and atom_types (N,)
+    Converts tensors to numpy, selects the requested molecule, and calls plot_3d_molecule.
     """
     try:
-        from rdkit import Chem
-        from rdkit.Chem import AllChem, Draw
-        import matplotlib.pyplot as plt
-        from mpl_toolkits.mplot3d import Axes3D
+        from rdkit import Chem  # noqa: F401
+        from rdkit.Chem import AllChem, Draw  # noqa: F401
     except ImportError:
         print("RDKit and matplotlib required for visualization")
         return
 
-    # Extract single molecule
-    mol_coords = coords[idx].cpu().numpy()
-    mol_atoms = atom_types[idx].cpu().numpy()
+    # Convert to numpy if needed
+    coords_np = coords.cpu().numpy() if torch.is_tensor(coords) else np.asarray(coords)
+    atoms_np = atom_types.cpu().numpy() if torch.is_tensor(atom_types) else np.asarray(atom_types)
 
-    # Atom type mapping (for QM9)
-    atom_map = {0: 'H', 1: 'C', 2: 'N', 3: 'O', 4: 'F'}
+    # Handle batched vs single-molecule shapes
+    if coords_np.ndim == 3:
+        coords_sel = coords_np[idx]
+    elif coords_np.ndim == 2:
+        coords_sel = coords_np
+    else:
+        raise ValueError(f"`coords` must be 2D or 3D, got shape {coords_np.shape}")
 
-    # 3D visualization
-    fig = plt.figure(figsize=(10, 10))
-    ax = fig.add_subplot(111, projection='3d')
+    if atoms_np.ndim == 2:
+        atoms_sel = atoms_np[idx]
+    elif atoms_np.ndim == 1:
+        atoms_sel = atoms_np
+    else:
+        raise ValueError(f"`atom_types` must be 1D or 2D, got shape {atoms_np.shape}")
 
-    colors = {'H': 'white', 'C': 'gray', 'N': 'blue', 'O': 'red', 'F': 'green'}
+    if title is None:
+        title = f"Generated Molecule {idx}"
 
-    for i, (coord, atom_type) in enumerate(zip(mol_coords, mol_atoms)):
-        atom_symbol = atom_map.get(atom_type, 'H')
-        ax.scatter(*coord, c=colors[atom_symbol], s=500, alpha=0.8, edgecolors='black')
-        ax.text(*coord, atom_symbol, fontsize=12)
+    # Create axis if not provided
+    if ax is None:
+        fig = plt.figure(figsize=(10, 10))
+        ax = fig.add_subplot(111, projection='3d')
 
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    ax.set_title(f'Generated Molecule {idx}')
-
+    # Use existing plot helper
+    plot_3d_molecule(coords_sel, atoms_sel, ax=ax, title=title)
     plt.show()
+
 
 
 def plot_3d_molecule(coords, atom_types, ax=None, title="Molecule"):
