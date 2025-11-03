@@ -69,7 +69,7 @@ class DiffusionProcess:
 
         # Add noise (reparameterization trick)
         xt = torch.sqrt(alpha_bar_t) * x0 + torch.sqrt(1 - alpha_bar_t) * noise_x
-        ht = torch.sqrt(alpha_bar_t.unsqueeze(-1)) * h0 + torch.sqrt(1 - alpha_bar_t.unsqueeze(-1)) * noise_h
+        ht = torch.sqrt(alpha_bar_t) * h0 + torch.sqrt(1 - alpha_bar_t) * noise_h
 
         # Center coordinates (maintain E(3) equivariance)
         # Note: Don't center per-node, center per-molecule if batched
