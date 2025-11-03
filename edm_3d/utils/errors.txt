@@ -1,45 +1,36 @@
-# Load subset of data
-train_data, val_data, test_data = prepare_qm9_data(max_samples=10000)
-
-print(f"Training samples: {len(train_data)}")
-print(f"Validation samples: {len(val_data)}")
-print(f"Test samples: {len(test_data)}")
-
-# Analyze dataset statistics
-from edm_3d.evaluation.visualization import plot_dataset_statistics
-
-plot_dataset_statistics(train_data)
-
-# Show example molecule
-sample_mol = train_data[0]
-visualization.visualize_molecule(
-    sample_mol['coords'],
-    sample_mol['atom_types'],
-    title="Example QM9 Molecule"
+model = EDM(
+    num_atom_types=5,
+    hidden_dim=128,  # Reduced from 256
+    num_layers=4,     # Reduced from 9
+    num_diffusion_steps=100,  # Reduced from 1000 for demo
+    learning_rate=1e-4,
+    batch_size=32     # Reduced batch size
 )
+
+# Print model architecture
+print(model)
+print(f"\nTotal parameters: {sum(p.numel() for p in model.parameters()):,}")
+
+
+
 
 ---------------------------------------------------------------------------
 TypeError                                 Traceback (most recent call last)
-Cell In[3], line 15
-     13 # Show example molecule
-     14 sample_mol = train_data[0]
----> 15 visualization.visualize_molecule(
-     16     sample_mol['coords'],
-     17     sample_mol['atom_types'],
-     18     title="Example QM9 Molecule"
-     19 )
+Cell In[4], line 1
+----> 1 model = EDM(
+      2     num_atom_types=5,
+      3     hidden_dim=128,  # Reduced from 256
+      4     num_layers=4,     # Reduced from 9
+      5     num_diffusion_steps=100,  # Reduced from 1000 for demo
+      6     learning_rate=1e-4,
+      7     batch_size=32     # Reduced batch size
+      8 )
+     10 # Print model architecture
+     11 print(model)
 
-File ~/Projects/diffusion_gnn/edm_3d/evaluation/visualization.py:92, in visualize_molecule(coords, atom_types, idx, title)
-     89 if title is None:
-     90     title = f'Generated Molecule {idx}'
----> 92 plot_3d_molecule(coords[idx], atom_types[idx], ax=ax, title=title)
-     93 plt.show()
+File ~/Projects/diffusion_gnn/edm_3d/models/edm.py:49, in EDM.__init__(self, num_atom_types, hidden_dim, num_layers, num_diffusion_steps, **kwargs)
+     46 self.diffusion = DiffusionProcess(num_steps=num_diffusion_steps)
+     48 # Initialize as TorchModel
+---> 49 super().__init__(self.egnn, **kwargs)
 
-File ~/Projects/diffusion_gnn/edm_3d/evaluation/visualization.py:68, in plot_3d_molecule(coords, atom_types, ax, title)
-     65 atom_types_np = atom_types.cpu().numpy() if torch.is_tensor(atom_types) else atom_types
-     67 # Plot atoms
----> 68 for coord, atom_type in zip(coords_np, atom_types_np):
-     69     atom_symbol = atom_map.get(int(atom_type), 'C')
-     70     color = colors[atom_symbol]
-
-TypeError: iteration over a 0-d array
+TypeError: TorchModel.__init__() missing 1 required positional argument: 'loss'

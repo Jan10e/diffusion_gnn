@@ -5,6 +5,9 @@ from typing import Tuple, Optional
 import deepchem as dc
 from deepchem.models.torch_models import TorchModel
 
+from edm_3d.core.egnn import EGNN
+from edm_3d.core.diffusion_process import DiffusionProcess
+
 
 class EDM(TorchModel):
     """
