@@ -1,36 +1,30 @@
-model = EDM(
-    num_atom_types=5,
-    hidden_dim=128,  # Reduced from 256
-    num_layers=4,     # Reduced from 9
-    num_diffusion_steps=100,  # Reduced from 1000 for demo
-    learning_rate=1e-4,
-    batch_size=32     # Reduced batch size
-)
-
-# Print model architecture
-print(model)
-print(f"\nTotal parameters: {sum(p.numel() for p in model.parameters()):,}")
-
-
-
-
 ---------------------------------------------------------------------------
-TypeError                                 Traceback (most recent call last)
-Cell In[4], line 1
-----> 1 model = EDM(
-      2     num_atom_types=5,
-      3     hidden_dim=128,  # Reduced from 256
-      4     num_layers=4,     # Reduced from 9
-      5     num_diffusion_steps=100,  # Reduced from 1000 for demo
-      6     learning_rate=1e-4,
-      7     batch_size=32     # Reduced batch size
-      8 )
-     10 # Print model architecture
-     11 print(model)
+AttributeError                            Traceback (most recent call last)
+Cell In[6], line 18
+      8 # Option 1: Train from scratch (reduced epochs for demo)
+      9 trainer = EDMTrainer(
+     10     model=model,
+     11     train_data=train_data,
+   (...)     15     save_dir='../results/edm_3d_small/'
+     16 )
+---> 18 history = trainer.train()
+     20 # Plot training curves
+     21 plt.figure(figsize=(12, 4))
 
-File ~/Projects/diffusion_gnn/edm_3d/models/edm.py:49, in EDM.__init__(self, num_atom_types, hidden_dim, num_layers, num_diffusion_steps, **kwargs)
-     46 self.diffusion = DiffusionProcess(num_steps=num_diffusion_steps)
-     48 # Initialize as TorchModel
----> 49 super().__init__(self.egnn, **kwargs)
+File ~/Projects/diffusion_gnn/edm_3d/training/trainer.py:105, in EDMTrainer.train(self)
+    102 print(f"\nEpoch {epoch + 1}/{self.num_epochs}")
+    104 # Train
+--> 105 train_loss = self.train_epoch(train_loader)
+    106 self.history['train_loss'].append(train_loss)
+    108 # Validate
 
-TypeError: TorchModel.__init__() missing 1 required positional argument: 'loss'
+File ~/Projects/diffusion_gnn/edm_3d/training/trainer.py:147, in EDMTrainer.train_epoch(self, dataloader)
+    145 # Random timestep
+    146 batch_size = batch_indices.max().item() + 1
+--> 147 t = torch.randint(0, self.model.diffusion.num_steps, (batch_size,), device=self.device)
+    149 # Forward diffusion (add noise)
+    150 noisy_coords, noisy_atoms, noise_coords, noise_atoms = self.model.diffusion.forward_diffusion(
+    151     coords, atom_types, t[batch_indices]
+    152 )
+
+AttributeError: 'EDM' object has no attribute 'diffusion'
