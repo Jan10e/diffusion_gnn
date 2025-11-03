@@ -1,9 +1,6 @@
 import torch
-import torch.nn as nn
 import numpy as np
-from typing import Tuple, Optional
-import deepchem as dc
-from deepchem.models.torch_models import TorchModel
+from typing import Tuple
 
 
 class DiffusionProcess:
@@ -20,17 +17,13 @@ class DiffusionProcess:
         self.num_steps = num_steps
         self.noise_schedule = noise_schedule
 
-        # Compute noise schedule (beta values)
+        # Compute noise schedule (beta values) - KEEP ON CPU initially
         self.betas = self._get_noise_schedule(noise_precision)
         self.alphas = 1 - self.betas
         self.alpha_bars = torch.cumprod(self.alphas, dim=0)
 
     def _get_noise_schedule(self, precision: float) -> torch.Tensor:
-        """
-        Generate noise schedule
-
-        Polynomial_2 schedule from EDM paper
-        """
+        """Generate noise schedule"""
         t = torch.linspace(0, 1, self.num_steps)
 
         if self.noise_schedule == 'polynomial_2':
@@ -52,29 +45,35 @@ class DiffusionProcess:
         """
         Add noise to molecule (forward process)
 
-        q(x_t, h_t | x_0, h_0)
-
         Args:
             x0: Original coordinates [N, 3]
             h0: Original atom types [N, num_atom_types]
-            t: Timestep [batch_size]
+            t: Timestep [N] - one timestep per node
 
         Returns:
             Noisy coordinates, noisy atom types, noise_x, noise_h
         """
-        # Get alpha_bar for timestep t
-        alpha_bar_t = self.alpha_bars[t].view(-1, 1, 1)
+        # Get device from input tensors
+        device = x0.device
 
-        # Sample noise
+        # Move schedule to device if needed
+        if self.alpha_bars.device != device:
+            self.alpha_bars = self.alpha_bars.to(device)
+
+        # Get alpha_bar for timestep t - t is [N] with one value per node
+        alpha_bar_t = self.alpha_bars[t].view(-1, 1)  # [N, 1]
+
+        # Sample noise - same device as input
         noise_x = torch.randn_like(x0)
         noise_h = torch.randn_like(h0)
 
         # Add noise (reparameterization trick)
         xt = torch.sqrt(alpha_bar_t) * x0 + torch.sqrt(1 - alpha_bar_t) * noise_x
-        ht = torch.sqrt(alpha_bar_t) * h0 + torch.sqrt(1 - alpha_bar_t) * noise_h
+        ht = torch.sqrt(alpha_bar_t.unsqueeze(-1)) * h0 + torch.sqrt(1 - alpha_bar_t.unsqueeze(-1)) * noise_h
 
         # Center coordinates (maintain E(3) equivariance)
-        xt = xt - xt.mean(dim=1, keepdim=True)
+        # Note: Don't center per-node, center per-molecule if batched
+        xt = xt - xt.mean(dim=0, keepdim=True)
 
         return xt, ht, noise_x, noise_h
 
@@ -89,8 +88,21 @@ class DiffusionProcess:
         """
         Single reverse diffusion step (denoising)
 
-        p(x_{t-1} | x_t)
+        Args:
+            xt: Current coordinates [B, N, 3]
+            ht: Current atom types [B, N, F]
+            pred_noise_x: Predicted noise for coords
+            pred_noise_h: Predicted noise for atoms
+            t: Current timestep (integer)
         """
+        device = xt.device
+
+        # Move schedule to device if needed
+        if self.alphas.device != device:
+            self.alphas = self.alphas.to(device)
+            self.alpha_bars = self.alpha_bars.to(device)
+            self.betas = self.betas.to(device)
+
         alpha_t = self.alphas[t]
         alpha_bar_t = self.alpha_bars[t]
         beta_t = self.betas[t]
@@ -125,4 +137,3 @@ class DiffusionProcess:
         xt_1 = xt_1 - xt_1.mean(dim=1, keepdim=True)
 
         return xt_1, ht_1
-

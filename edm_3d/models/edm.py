@@ -1,7 +1,3 @@
-# ============================================================================
-# edm_3d/models/edm.py (CORRECTED)
-# ============================================================================
-
 import torch
 import torch.nn as nn
 import numpy as np
@@ -12,10 +8,6 @@ from edm_3d.core.egnn import EGNN
 from edm_3d.core.diffusion_process import DiffusionProcess
 
 logger = logging.getLogger(__name__)
-
-
-if device is None:
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class EDMCore(nn.Module):
@@ -167,8 +159,8 @@ class EDM:
 
     def to(self, device):
         """Move model to device"""
-        self.device = device
-        self.model = self.model.to(device)
+        self.device = torch.device(device) if isinstance(device, str) else device
+        self.model = self.model.to(self.device)
         return self
 
     def compute_loss(
@@ -182,33 +174,40 @@ class EDM:
         Compute diffusion loss for a batch
 
         Args:
-            coords: Node coordinates [N, 3]
-            atom_types: Atom type indices [N]
-            edge_index: Edge connectivity [2, E]
-            batch_indices: Batch assignment for each node [N]
+            coords: Node coordinates [N, 3] - ALREADY ON DEVICE
+            atom_types: Atom type indices [N] - ALREADY ON DEVICE
+            edge_index: Edge connectivity [2, E] - ALREADY ON DEVICE
+            batch_indices: Batch assignment for each node [N] - ALREADY ON DEVICE
 
         Returns:
             Loss value
         """
+        # Ensure everything is on the correct device
+        coords = coords.to(self.device)
+        atom_types = atom_types.to(self.device)
+        edge_index = edge_index.to(self.device)
+        batch_indices = batch_indices.to(self.device)
+
         batch_size = batch_indices.max().item() + 1
 
-        # Random timestep for each molecule in batch
+        # Random timestep for each molecule in batch - CREATE ON DEVICE
         t = torch.randint(
             0,
             self.num_diffusion_steps,
             (batch_size,),
-            device=self.device
+            device=self.device  # CRITICAL: Create directly on device
         )
 
-        # Convert atom types to one-hot
+        # Convert atom types to one-hot - CREATE ON DEVICE
         atom_types_onehot = torch.zeros(
             len(atom_types),
             self.num_atom_types,
-            device=self.device
+            device=self.device  # CRITICAL: Create directly on device
         )
         atom_types_onehot.scatter_(1, atom_types.unsqueeze(1), 1.0)
 
         # Forward diffusion (add noise)
+        # Pass t[batch_indices] which indexes t properly
         noisy_coords, noisy_atoms, noise_coords, noise_atoms = \
             self.model.diffusion.forward_diffusion(
                 coords,
@@ -255,10 +254,12 @@ class EDM:
 
         if device is None:
             device = self.device
+        else:
+            device = torch.device(device) if isinstance(device, str) else device
 
-        # Start from noise
-        xt = torch.randn(num_molecules, num_atoms, 3).to(device)
-        ht = torch.randn(num_molecules, num_atoms, self.num_atom_types).to(device)
+        # Start from noise - CREATE ON DEVICE
+        xt = torch.randn(num_molecules, num_atoms, 3, device=device)
+        ht = torch.randn(num_molecules, num_atoms, self.num_atom_types, device=device)
 
         # Center coordinates
         xt = xt - xt.mean(dim=1, keepdim=True)
@@ -271,7 +272,7 @@ class EDM:
             if t % 20 == 0:
                 logger.debug(f"Generation step {self.num_diffusion_steps - t}/{self.num_diffusion_steps}")
 
-            t_tensor = torch.tensor([t] * num_molecules).to(device)
+            t_tensor = torch.tensor([t] * num_molecules, device=device)
 
             # Predict noise
             pred_noise_h, pred_noise_x = self.model(
