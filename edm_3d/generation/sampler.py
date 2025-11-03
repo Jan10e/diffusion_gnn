@@ -1,9 +1,7 @@
 import torch
-import torch.nn as nn
-import numpy as np
-from typing import Tuple, Optional
-import deepchem as dc
-from deepchem.models.torch_models import TorchModel
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class EDMSampler:
@@ -14,13 +12,14 @@ class EDMSampler:
     def __init__(self, model):
         self.model = model
         self.model.eval()
+        logger.info(f"Initialized EDMSampler on device: {model.device}")
 
     @torch.no_grad()
     def sample(
             self,
             num_molecules: int,
             num_atoms: int,
-            device: str = 'cpu',
+            device: str = None,
             return_trajectory: bool = False
     ):
         """
@@ -29,17 +28,26 @@ class EDMSampler:
         Args:
             num_molecules: Number of molecules to generate
             num_atoms: Number of atoms per molecule
-            device: Device to run on
+            device: Device to run on (if None, uses model's device)
             return_trajectory: If True, return all intermediate steps
 
         Returns:
             coords, atom_types (and trajectory if requested)
         """
-        self.model = self.model.to(device)
+        # Use model's device if not specified
+        if device is None:
+            device = self.model.device
+        else:
+            device = torch.device(device)
+
+        logger.info(f"Generating {num_molecules} molecules with {num_atoms} atoms on {device}")
+
+        # Ensure model is on correct device
+        self.model.to(device)
 
         # Start from noise
-        coords = torch.randn(num_molecules, num_atoms, 3).to(device)
-        atom_types = torch.randn(num_molecules, num_atoms, self.model.num_atom_types).to(device)
+        coords = torch.randn(num_molecules, num_atoms, 3, device=device)
+        atom_types = torch.randn(num_molecules, num_atoms, self.model.num_atom_types, device=device)
 
         # Center coordinates
         coords = coords - coords.mean(dim=1, keepdim=True)
@@ -47,18 +55,24 @@ class EDMSampler:
         trajectory = [] if return_trajectory else None
 
         # Reverse diffusion
-        for t in reversed(range(self.model.diffusion.num_steps)):
-            if return_trajectory and t % 100 == 0:
-                trajectory.append((coords.clone(), atom_types.clone()))
+        num_steps = self.model.num_diffusion_steps
+        for t in reversed(range(num_steps)):
+            if t % 20 == 0:
+                logger.debug(f"Generation step {num_steps - t}/{num_steps}")
+
+            if return_trajectory and t % 10 == 0:
+                trajectory.append((coords.clone().cpu(), atom_types.clone().cpu()))
 
             coords, atom_types = self._denoise_step(coords, atom_types, t, device)
 
         # Convert to discrete atom types
         atom_types_discrete = torch.argmax(atom_types, dim=-1)
 
+        logger.info(f"✓ Generation complete")
+
         if return_trajectory:
-            return coords, atom_types_discrete, trajectory
-        return coords, atom_types_discrete
+            return coords.cpu(), atom_types_discrete.cpu(), trajectory
+        return coords.cpu(), atom_types_discrete.cpu()
 
     def _denoise_step(self, coords, atom_types, t, device):
         """Single denoising step"""
@@ -69,10 +83,10 @@ class EDMSampler:
         edge_index = self.model._get_fully_connected_edges(num_atoms, batch_size).to(device)
 
         # Timestep tensor
-        t_tensor = torch.tensor([t] * batch_size).to(device)
+        t_tensor = torch.tensor([t] * batch_size, device=device)
 
-        # Predict noise
-        pred_noise_h, pred_noise_x = self.model.forward(
+        # Predict noise using model's forward method
+        pred_noise_h, pred_noise_x = self.model.model(
             atom_types.view(-1, self.model.num_atom_types),
             coords.view(-1, 3),
             edge_index,
@@ -83,14 +97,14 @@ class EDMSampler:
         pred_noise_h = pred_noise_h.view(batch_size, num_atoms, -1)
         pred_noise_x = pred_noise_x.view(batch_size, num_atoms, 3)
 
-        # Denoise
-        coords_new, atoms_new = self.model.diffusion.reverse_diffusion_step(
+        # Denoise using model's diffusion process
+        coords_new, atoms_new = self.model.model.diffusion.reverse_diffusion_step(
             coords, atom_types, pred_noise_x, pred_noise_h, t
         )
 
         return coords_new, atoms_new
 
-    def sample_with_trajectory(self, num_molecules, num_atoms, save_every=100, device='cpu'):
+    def sample_with_trajectory(self, num_molecules, num_atoms, save_every=10, device=None):
         """Sample and return full trajectory"""
         return self.sample(
             num_molecules=num_molecules,
@@ -100,17 +114,22 @@ class EDMSampler:
         )
 
 
-# Standalone function
-def generate_molecules(model, num_molecules: int = 10, device='cpu'):
+def generate_molecules(model, num_molecules: int = 10, num_atoms: int = 9, device=None):
     """
     Convenience function to generate molecules
+
+    Args:
+        model: EDM model
+        num_molecules: Number of molecules to generate
+        num_atoms: Number of atoms per molecule
+        device: Device to use (None = use model's device)
     """
     print(f"Generating {num_molecules} molecules...")
 
     sampler = EDMSampler(model)
     coords, atom_types = sampler.sample(
         num_molecules=num_molecules,
-        num_atoms=9,
+        num_atoms=num_atoms,
         device=device
     )
 

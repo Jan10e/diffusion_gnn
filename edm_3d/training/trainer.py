@@ -4,35 +4,9 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from pathlib import Path
 import json
+import logging
 
-from edm_3d.data.qm9_loader import prepare_qm9_data
-
-def train_edm():
-    """
-    Train EDM on QM9 dataset
-    """
-    # Prepare data
-    train_dataset, valid_dataset, test_dataset = prepare_qm9_data()
-
-    # Initialize model
-    model = EDM(
-        num_atom_types=5,  # H, C, N, O, F
-        hidden_dim=256,
-        num_layers=9,
-        num_diffusion_steps=1000,
-        learning_rate=1e-4,
-        batch_size=64
-    )
-
-    print("Starting training...")
-
-    # Train model
-    model.fit(
-        train_dataset,
-        nb_epoch=3000
-    )
-
-    return model
+logger = logging.getLogger(__name__)
 
 
 class EDMTrainer:
@@ -47,7 +21,6 @@ class EDMTrainer:
             val_data,
             num_epochs: int = 10,
             batch_size: int = 64,
-            learning_rate: float = 1e-4,
             save_dir: str = './checkpoints',
             device: str = None
     ):
@@ -59,19 +32,11 @@ class EDMTrainer:
         self.save_dir = Path(save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)
 
-        # Device
-        if device is None:
-            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        else:
-            self.device = device
+        # Device - use model's device
+        self.device = model.device
 
-        self.model = self.model.to(self.device)
-
-        # Optimizer
-        self.optimizer = torch.optim.Adam(
-            model.parameters(),
-            lr=learning_rate
-        )
+        # Optimizer - use model's optimizer
+        self.optimizer = model.optimizer
 
         # History
         self.history = {
@@ -79,6 +44,8 @@ class EDMTrainer:
             'val_loss': [],
             'learning_rate': []
         }
+
+        logger.info(f"Initialized EDMTrainer with {len(train_data)} train samples")
 
     def train(self):
         """
@@ -89,14 +56,18 @@ class EDMTrainer:
             self.train_data,
             batch_size=self.batch_size,
             shuffle=True,
-            collate_fn=self._collate_fn
+            collate_fn=self._collate_fn,
+            num_workers=0  # Set to 0 to avoid multiprocessing issues
         )
         val_loader = DataLoader(
             self.val_data,
             batch_size=self.batch_size,
             shuffle=False,
-            collate_fn=self._collate_fn
+            collate_fn=self._collate_fn,
+            num_workers=0
         )
+
+        logger.info(f"Starting training for {self.num_epochs} epochs")
 
         for epoch in range(self.num_epochs):
             print(f"\nEpoch {epoch + 1}/{self.num_epochs}")
@@ -115,17 +86,18 @@ class EDMTrainer:
 
             print(f"Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
 
-            # Save checkpoint
-            if (epoch + 1) % 10 == 0:
+            # Save checkpoint every 5 epochs
+            if (epoch + 1) % 5 == 0:
                 self._save_checkpoint(epoch)
 
         # Save final model
-        torch.save(self.model.state_dict(), self.save_dir / 'edm_final.pth')
+        self.model.save(self.save_dir / 'edm_final.pth')
 
         # Save history
         with open(self.save_dir / 'history.json', 'w') as f:
             json.dump(self.history, f, indent=2)
 
+        logger.info("Training complete!")
         return self.history
 
     def train_epoch(self, dataloader):
@@ -134,43 +106,42 @@ class EDMTrainer:
         """
         self.model.train()
         total_loss = 0
+        num_batches = 0
 
-        for batch in tqdm(dataloader, desc="Training"):
-            # Move to device
-            coords = batch['coords'].to(self.device)
-            atom_types = batch['atom_types'].to(self.device)
-            edge_index = batch['edge_index'].to(self.device)
-            batch_indices = batch['batch'].to(self.device)
+        pbar = tqdm(dataloader, desc="Training")
+        for batch in pbar:
+            try:
+                # Move to device
+                coords = batch['coords'].to(self.device)
+                atom_types = batch['atom_types'].to(self.device)
+                edge_index = batch['edge_index'].to(self.device)
+                batch_indices = batch['batch'].to(self.device)
 
-            # Random timestep
-            batch_size = batch_indices.max().item() + 1
-            t = torch.randint(0, self.model.diffusion.num_steps, (batch_size,), device=self.device)
+                # Compute loss using model's method
+                loss = self.model.compute_loss(
+                    coords=coords,
+                    atom_types=atom_types,
+                    edge_index=edge_index,
+                    batch_indices=batch_indices
+                )
 
-            # Forward diffusion (add noise)
-            noisy_coords, noisy_atoms, noise_coords, noise_atoms = self.model.diffusion.forward_diffusion(
-                coords, atom_types, t[batch_indices]
-            )
+                # Backward
+                self.optimizer.zero_grad()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+                self.optimizer.step()
 
-            # Predict noise
-            pred_noise_atoms, pred_noise_coords = self.model(
-                noisy_atoms, noisy_coords, edge_index, t[batch_indices]
-            )
+                total_loss += loss.item()
+                num_batches += 1
 
-            # Compute loss
-            loss = self.model.loss_func(
-                (pred_noise_atoms, pred_noise_coords),
-                (noise_atoms, noise_coords)
-            )
+                # Update progress bar
+                pbar.set_postfix({'loss': f'{loss.item():.4f}'})
 
-            # Backward
-            self.optimizer.zero_grad()
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
-            self.optimizer.step()
+            except Exception as e:
+                logger.error(f"Error in training batch: {e}")
+                continue
 
-            total_loss += loss.item()
-
-        return total_loss / len(dataloader)
+        return total_loss / max(num_batches, 1)
 
     def validate(self, dataloader):
         """
@@ -178,33 +149,34 @@ class EDMTrainer:
         """
         self.model.eval()
         total_loss = 0
+        num_batches = 0
 
         with torch.no_grad():
-            for batch in tqdm(dataloader, desc="Validating"):
-                coords = batch['coords'].to(self.device)
-                atom_types = batch['atom_types'].to(self.device)
-                edge_index = batch['edge_index'].to(self.device)
-                batch_indices = batch['batch'].to(self.device)
+            pbar = tqdm(dataloader, desc="Validating")
+            for batch in pbar:
+                try:
+                    coords = batch['coords'].to(self.device)
+                    atom_types = batch['atom_types'].to(self.device)
+                    edge_index = batch['edge_index'].to(self.device)
+                    batch_indices = batch['batch'].to(self.device)
 
-                batch_size = batch_indices.max().item() + 1
-                t = torch.randint(0, self.model.diffusion.num_steps, (batch_size,), device=self.device)
+                    loss = self.model.compute_loss(
+                        coords=coords,
+                        atom_types=atom_types,
+                        edge_index=edge_index,
+                        batch_indices=batch_indices
+                    )
 
-                noisy_coords, noisy_atoms, noise_coords, noise_atoms = self.model.diffusion.forward_diffusion(
-                    coords, atom_types, t[batch_indices]
-                )
+                    total_loss += loss.item()
+                    num_batches += 1
 
-                pred_noise_atoms, pred_noise_coords = self.model(
-                    noisy_atoms, noisy_coords, edge_index, t[batch_indices]
-                )
+                    pbar.set_postfix({'loss': f'{loss.item():.4f}'})
 
-                loss = self.model.loss_func(
-                    (pred_noise_atoms, pred_noise_coords),
-                    (noise_atoms, noise_coords)
-                )
+                except Exception as e:
+                    logger.error(f"Error in validation batch: {e}")
+                    continue
 
-                total_loss += loss.item()
-
-        return total_loss / len(dataloader)
+        return total_loss / max(num_batches, 1)
 
     def _collate_fn(self, batch):
         """
@@ -217,7 +189,8 @@ class EDMTrainer:
         for item in batch:
             data = Data(
                 x=item['atom_types'],
-                pos=item['coords']
+                pos=item['coords'],
+                num_nodes=item['num_atoms']
             )
             data_list.append(data)
 
@@ -258,5 +231,4 @@ class EDMTrainer:
             'optimizer_state_dict': self.optimizer.state_dict(),
             'history': self.history
         }, checkpoint_path)
-        print(f"Checkpoint saved: {checkpoint_path}")
-
+        print(f"  → Checkpoint saved: {checkpoint_path.name}")
