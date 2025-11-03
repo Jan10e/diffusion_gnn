@@ -1,5 +1,5 @@
 # ============================================================================
-# edm_3d/core/egnn.py (FIXED OUTPUT DIMENSIONS)
+# edm_3d/core/egnn.py
 # ============================================================================
 
 import torch
@@ -8,6 +8,8 @@ from typing import Tuple, Optional
 
 
 class EGNNLayer(nn.Module):
+    """E(n) Equivariant Graph Neural Network Layer"""
+
     def __init__(self, hidden_dim: int, edge_feat_dim: int = 0):
         super().__init__()
         self.hidden_dim = hidden_dim
@@ -65,13 +67,15 @@ class EGNNLayer(nn.Module):
 
 
 class EGNN(nn.Module):
+    """Multi-layer E(n) Equivariant Graph Neural Network"""
+
     def __init__(
             self,
             in_node_dim: int,
             hidden_dim: int = 256,
             num_layers: int = 9,
             edge_feat_dim: int = 0,
-            out_node_dim: int = None  # ADDED
+            out_node_dim: int = None
     ):
         super().__init__()
 
@@ -83,7 +87,7 @@ class EGNN(nn.Module):
             EGNNLayer(hidden_dim, edge_feat_dim)
             for _ in range(num_layers)
         ])
-        self.node_output = nn.Linear(hidden_dim, out_node_dim)  # FIXED
+        self.node_output = nn.Linear(hidden_dim, out_node_dim)
 
     def forward(
             self,
@@ -97,6 +101,6 @@ class EGNN(nn.Module):
         for layer in self.layers:
             h, x = layer(h, x, edge_index, edge_attr)
 
-        h = self.node_output(h)  # Now outputs correct dimension
+        h = self.node_output(h)
 
         return h, x
