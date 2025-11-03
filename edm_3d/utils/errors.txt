@@ -1,58 +1,9 @@
-Still:
-
-
-✓ Training complete!
-Final train loss: 0.0000
-Final val loss: 0.0000
-
--> perhaps early stopping? As it now also take 40min on GPU.
-
-Molecule generation gives:
-
-INFO:edm_3d.generation.sampler:Initialized EDMSampler on device: cuda
-INFO:edm_3d.generation.sampler:Generating 16 molecules with 9 atoms on cuda
-Generating 16 molecules on cuda...
-
----------------------------------------------------------------------------
-RuntimeError                              Traceback (most recent call last)
-Cell In[8], line 14
-     11 num_molecules = 16
-     12 print(f"Generating {num_molecules} molecules on {model.device}...")
----> 14 generated_coords, generated_atoms = sampler.sample(
-     15     num_molecules=num_molecules,
-     16     num_atoms=9,  # Average QM9 size
-     17     device=model.device  # Use model's device (GPU)
-     18 )
-     20 print(f"✓ Generated {num_molecules} molecules")
-     21 print(f"Coordinates shape: {generated_coords.shape}")
-
-File ~/miniconda3/envs/diff_gnn/lib/python3.11/site-packages/torch/utils/_contextlib.py:120, in context_decorator.<locals>.decorate_context(*args, **kwargs)
-    117 @functools.wraps(func)
-    118 def decorate_context(*args, **kwargs):
-    119     with ctx_factory():
---> 120         return func(*args, **kwargs)
-
-File ~/Projects/diffusion_gnn/edm_3d/generation/sampler.py:66, in EDMSampler.sample(self, num_molecules, num_atoms, device, return_trajectory)
-     63     if return_trajectory and t % 10 == 0:
-     64         trajectory.append((coords.clone().cpu(), atom_types.clone().cpu()))
----> 66     coords, atom_types = self._denoise_step(coords, atom_types, t, device)
-     68 # Convert to discrete atom types
-     69 atom_types_discrete = torch.argmax(atom_types, dim=-1)
-
-File ~/Projects/diffusion_gnn/edm_3d/generation/sampler.py:101, in EDMSampler._denoise_step(self, coords, atom_types, t, device)
-     98 pred_noise_x = pred_noise_x.view(batch_size, num_atoms, 3)
-    100 # Denoise using model's diffusion process
---> 101 coords_new, atoms_new = self.model.model.diffusion.reverse_diffusion_step(
-    102     coords, atom_types, pred_noise_x, pred_noise_h, t
-    103 )
-    105 return coords_new, atoms_new
-
-File ~/Projects/diffusion_gnn/edm_3d/core/diffusion_process.py:112, in DiffusionProcess.reverse_diffusion_step(self, xt, ht, pred_noise_x, pred_noise_h, t)
-    110 # Predict x0 from xt
-    111 x0_pred = (xt - torch.sqrt(1 - alpha_bar_t) * pred_noise_x) / torch.sqrt(alpha_bar_t)
---> 112 h0_pred = (ht - torch.sqrt(1 - alpha_bar_t) * pred_noise_h) / torch.sqrt(alpha_bar_t)
-    114 if t > 0:
-    115     # Add noise for stochastic sampling
-    116     noise_x = torch.randn_like(xt)
-
-RuntimeError: The size of tensor a (5) must match the size of tensor b (133) at non-singleton dimension 2
+ERROR:edm_3d.training.trainer:Error in training batch: Tensors must have same number of dimensions: got 3 and 2
+Training:  59%|█████▉    | 185/313 [02:07<01:00,  2.12it/s]WARNING:edm_3d.data.qm9_loader:Failed to process molecule 8475: [H]C([H])([H])C([H])([H])O[C@@]1([H])[C@@]2([H])O[C@@]([H])(C([H])([H])[H])[C@@]12[H]
+ERROR:edm_3d.training.trainer:Error in training batch: Tensors must have same number of dimensions: got 3 and 2
+Training:  59%|█████▉    | 186/313 [02:08<01:01,  2.05it/s]WARNING:edm_3d.data.qm9_loader:Failed to process molecule 9050: [H]C([H])([H])[C@@]1([H])[C@]2([H])C([H])([H])[C@@]1([H])[C@]21O[C@]1([H])C([H])([H])[H]
+ERROR:edm_3d.training.trainer:Error in training batch: Tensors must have same number of dimensions: got 3 and 2
+Training:  60%|█████▉    | 187/313 [02:08<01:05,  1.92it/s]WARNING:edm_3d.data.qm9_loader:Failed to process molecule 2014: [H]C([H])([H])C([H])([H])[C@]12C([H])([H])[C@](C#N)(C1([H])[H])C2([H])[H]
+WARNING:edm_3d.data.qm9_loader:Failed to process molecule 5688: [H]O[C@]1(C([H])([H])[H])[C@@]2([H])C([H])([H])[C@]1([H])[C@@]2([H])C([H])=O
+ERROR:edm_3d.training.trainer:Error in training batch: Tensors must have same number of dimensions: got 3 and 2
+Training:  60%|██████    | 188/313 [02:10<01:31,  1.37it/s]WARNING:edm_3d.data.qm9_loader:Failed to process molecule 4028: [H]C1([H])[C@@]2([H])[C@]3([H])[N@@H+]4C([H])([H])[C@]4([H])[C@@]2(C([H])([H])[H])[C@]13[H]
