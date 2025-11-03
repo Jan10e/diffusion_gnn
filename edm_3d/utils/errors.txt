@@ -1,18 +1,58 @@
-A problem with training and validation:
-
-ERROR:edm_3d.training.trainer:Error in validation batch: indices should be either on cpu or on the same device as the indexed tensor (cpu)
-Validating:  97%|█████████▋| 61/63 [00:45<00:01,  1.11it/s]WARNING:edm_3d.data.qm9_loader:Failed to process molecule 1966: [H]C#C[C@@]1([H])N([H])[C@]12[C@@]1([H])C([H])([H])[C@]2([H])C1([H])[H]
-ERROR:edm_3d.training.trainer:Error in validation batch: indices should be either on cpu or on the same device as the indexed tensor (cpu)
-Validating:  98%|█████████▊| 62/63 [00:46<00:00,  1.25it/s]WARNING:edm_3d.data.qm9_loader:Failed to process molecule 1989: [H]C([H])([H])[C@@]1([H])[C@@]2([H])O[C@@]([H])(C([H])([H])[H])[C@]21C([H])([H])[H]
-ERROR:edm_3d.training.trainer:Error in validation batch: indices should be either on cpu or on the same device as the indexed tensor (cpu)
-Validating: 100%|██████████| 63/63 [00:46<00:00,  1.35it/s]
-INFO:edm_3d.models.edm:Model saved to ../experiments/results/edm_3d_small/edm_final.pth
-INFO:edm_3d.training.trainer:Training complete!
-Train Loss: 0.0000 | Val Loss: 0.0000
-  → Checkpoint saved: checkpoint_epoch_10.pth
+Still:
 
 
- Check following for whether GPU is used:
- - models/edm.py
-    - training/trainer.py
-    - generation/sampler.py
+✓ Training complete!
+Final train loss: 0.0000
+Final val loss: 0.0000
+
+-> perhaps early stopping? As it now also take 40min on GPU.
+
+Molecule generation gives:
+
+INFO:edm_3d.generation.sampler:Initialized EDMSampler on device: cuda
+INFO:edm_3d.generation.sampler:Generating 16 molecules with 9 atoms on cuda
+Generating 16 molecules on cuda...
+
+---------------------------------------------------------------------------
+RuntimeError                              Traceback (most recent call last)
+Cell In[8], line 14
+     11 num_molecules = 16
+     12 print(f"Generating {num_molecules} molecules on {model.device}...")
+---> 14 generated_coords, generated_atoms = sampler.sample(
+     15     num_molecules=num_molecules,
+     16     num_atoms=9,  # Average QM9 size
+     17     device=model.device  # Use model's device (GPU)
+     18 )
+     20 print(f"✓ Generated {num_molecules} molecules")
+     21 print(f"Coordinates shape: {generated_coords.shape}")
+
+File ~/miniconda3/envs/diff_gnn/lib/python3.11/site-packages/torch/utils/_contextlib.py:120, in context_decorator.<locals>.decorate_context(*args, **kwargs)
+    117 @functools.wraps(func)
+    118 def decorate_context(*args, **kwargs):
+    119     with ctx_factory():
+--> 120         return func(*args, **kwargs)
+
+File ~/Projects/diffusion_gnn/edm_3d/generation/sampler.py:66, in EDMSampler.sample(self, num_molecules, num_atoms, device, return_trajectory)
+     63     if return_trajectory and t % 10 == 0:
+     64         trajectory.append((coords.clone().cpu(), atom_types.clone().cpu()))
+---> 66     coords, atom_types = self._denoise_step(coords, atom_types, t, device)
+     68 # Convert to discrete atom types
+     69 atom_types_discrete = torch.argmax(atom_types, dim=-1)
+
+File ~/Projects/diffusion_gnn/edm_3d/generation/sampler.py:101, in EDMSampler._denoise_step(self, coords, atom_types, t, device)
+     98 pred_noise_x = pred_noise_x.view(batch_size, num_atoms, 3)
+    100 # Denoise using model's diffusion process
+--> 101 coords_new, atoms_new = self.model.model.diffusion.reverse_diffusion_step(
+    102     coords, atom_types, pred_noise_x, pred_noise_h, t
+    103 )
+    105 return coords_new, atoms_new
+
+File ~/Projects/diffusion_gnn/edm_3d/core/diffusion_process.py:112, in DiffusionProcess.reverse_diffusion_step(self, xt, ht, pred_noise_x, pred_noise_h, t)
+    110 # Predict x0 from xt
+    111 x0_pred = (xt - torch.sqrt(1 - alpha_bar_t) * pred_noise_x) / torch.sqrt(alpha_bar_t)
+--> 112 h0_pred = (ht - torch.sqrt(1 - alpha_bar_t) * pred_noise_h) / torch.sqrt(alpha_bar_t)
+    114 if t > 0:
+    115     # Add noise for stochastic sampling
+    116     noise_x = torch.randn_like(xt)
+
+RuntimeError: The size of tensor a (5) must match the size of tensor b (133) at non-singleton dimension 2
