@@ -1,20 +1,26 @@
-INFO:edm_3d.generation.sampler:Generating 1 molecules with 9 atoms on cuda
-INFO:edm_3d.generation.sampler:✓ Generation complete
-
 ---------------------------------------------------------------------------
-ValueError                                Traceback (most recent call last)
-Cell In[10], line 2
-      1 # Generate with intermediate steps
-----> 2 coords_trajectory, atoms_trajectory = sampler.sample_with_trajectory(
+AttributeError                            Traceback (most recent call last)
+Cell In[11], line 10
+      2 coords, atoms, trajectory = sampler.sample_with_trajectory(  # 3 values!
       3     num_molecules=1,
       4     num_atoms=9,
-      5     save_every=100  # Save every 100 steps
-      6 )
-      8 # Animate denoising
-      9 visualization.animate_diffusion(
-     10     coords_trajectory,
-     11     atoms_trajectory,
-     12     save_path='../results/edm_3d/generation_animation.gif'
-     13 )
+      5     save_every=10,  # Changed to 10 (you have 100 steps total)
+      6     device=model.device
+      7 )
+      9 # Animate denoising
+---> 10 visualization.animate_diffusion(
+     11     trajectory,  # Use trajectory, not coords_trajectory
+     12     trajectory,  # trajectory contains both coords and atoms as tuples
+     13     save_path='../experiments/results/edm_3d/generation_animation.gif'
+     14 )
+     16 # Show key frames - adjusted for 100 diffusion steps
+     17 timesteps_to_show = [0, 20, 40, 60, 80, 99]  # Changed from [0, 200, 400, 600, 800, 1000]
 
-ValueError: too many values to unpack (expected 2)
+File ~/Projects/diffusion_gnn/edm_3d/evaluation/visualization.py:205, in animate_diffusion(coords_trajectory, atoms_trajectory, save_path)
+    202 atoms = atoms_trajectory[frame_idx]
+    204 # Handle batched data
+--> 205 if coords.ndim == 3:
+    206     coords = coords[0]  # Take first molecule
+    207     atoms = atoms[0]
+
+AttributeError: 'tuple' object has no attribute 'ndim'
