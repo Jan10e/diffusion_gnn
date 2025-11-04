@@ -1,28 +1,23 @@
----------------------------------------------------------------------------
-TypeError                                 Traceback (most recent call last)
-Cell In[12], line 14
-     11 atoms_trajectory = [item[1] for item in trajectory]
-     13 # Animate denoising
----> 14 visualization.animate_diffusion(
-     15     coords_trajectory,
-     16     atoms_trajectory,
-     17     save_path='../experiments/results/edm_3d/generation_animation.gif'
-     18 )
-     20 # Show key frames
-     21 timesteps_to_show = [0, 20, 40, 60, 80, 99]
+[06:25:45] WARNING: could not find number of expected rings. Switching to an approximate ring finding algorithm.
+WARNING:edm_3d.data.qm9_loader:Failed to process molecule 543: [H]O[C@@]12[C@]3([H])C(=O)N([C@@]31[H])[C@]2([H])C([H])([H])[H]
+[06:25:45] WARNING: could not find number of expected rings. Switching to an approximate ring finding algorithm.
+WARNING:edm_3d.data.qm9_loader:Failed to process molecule 549: [H]O[C@]12[C@]([H])(C([H])([H])[H])[C@]3(O[H])[C@@]1([H])C([H])([H])[C@]23[H]
+[06:25:45] WARNING: could not find number of expected rings. Switching to an approximate ring finding algorithm.
+WARNING:edm_3d.data.qm9_loader:Failed to process molecule 562: [H]C(=O)C([H])([H])[C@@]12[N@@H+]3C([H])([H])[C@]3([H])[C@]1([H])C2([H])[H]
+[06:25:46] WARNING: could not find number of expected rings. Switching to an approximate ring finding algorithm.
+WARNING:edm_3d.data.qm9_loader:Failed to process molecule 572: [H]C([H])([H])C([H])([H])[C@@]1(C([H])([H])[H])O[C@@]2([H])[C@@]([H])(C([H])([H])[H])[C@@]12[H]
 
-File ~/Projects/diffusion_gnn/edm_3d/evaluation/visualization.py:209, in animate_diffusion(coords_trajectory, atoms_trajectory, save_path)
-    206         coords = coords[0]  # Take first molecule
-    207         atoms = atoms[0]
---> 209     plot_3d_molecule(coords, atoms, ax=axes[idx], title=f"Step {frame_idx}")
-    211 plt.tight_layout()
-    212 plt.show()
 
-File ~/Projects/diffusion_gnn/edm_3d/evaluation/visualization.py:31, in plot_3d_molecule(coords, atom_types, ax, title)
-     29 # Plot atoms
-     30 for coord, atom_type in zip(coords_np, atom_types_np):
----> 31     atom_symbol = atom_map.get(int(atom_type), 'C')
-     32     color = colors[atom_symbol]
-     33     ax.scatter(*coord, c=color, s=500, alpha=0.8, edgecolors='black', linewidths=2)
+==================================================
+EVALUATION RESULTS
+==================================================
+Validity (%)        : 100.00%
+Uniqueness (%)      :  93.75%
+Novelty (%)         : 100.00%
+Stability (%)       : 100.00%
+==================================================
+[06:29:14] WARNING: could not find number of expected rings. Switching to an approximate ring finding algorithm.
 
-TypeError: only length-1 arrays can be converted to Python scalars
+
+For distribution comparison:
+
