@@ -1,9 +1,20 @@
-ERROR:edm_3d.training.trainer:Error in training batch: Tensors must have same number of dimensions: got 3 and 2
-Training:  59%|█████▉    | 185/313 [02:07<01:00,  2.12it/s]WARNING:edm_3d.data.qm9_loader:Failed to process molecule 8475: [H]C([H])([H])C([H])([H])O[C@@]1([H])[C@@]2([H])O[C@@]([H])(C([H])([H])[H])[C@@]12[H]
-ERROR:edm_3d.training.trainer:Error in training batch: Tensors must have same number of dimensions: got 3 and 2
-Training:  59%|█████▉    | 186/313 [02:08<01:01,  2.05it/s]WARNING:edm_3d.data.qm9_loader:Failed to process molecule 9050: [H]C([H])([H])[C@@]1([H])[C@]2([H])C([H])([H])[C@@]1([H])[C@]21O[C@]1([H])C([H])([H])[H]
-ERROR:edm_3d.training.trainer:Error in training batch: Tensors must have same number of dimensions: got 3 and 2
-Training:  60%|█████▉    | 187/313 [02:08<01:05,  1.92it/s]WARNING:edm_3d.data.qm9_loader:Failed to process molecule 2014: [H]C([H])([H])C([H])([H])[C@]12C([H])([H])[C@](C#N)(C1([H])[H])C2([H])[H]
-WARNING:edm_3d.data.qm9_loader:Failed to process molecule 5688: [H]O[C@]1(C([H])([H])[H])[C@@]2([H])C([H])([H])[C@]1([H])[C@@]2([H])C([H])=O
-ERROR:edm_3d.training.trainer:Error in training batch: Tensors must have same number of dimensions: got 3 and 2
-Training:  60%|██████    | 188/313 [02:10<01:31,  1.37it/s]WARNING:edm_3d.data.qm9_loader:Failed to process molecule 4028: [H]C1([H])[C@@]2([H])[C@]3([H])[N@@H+]4C([H])([H])[C@]4([H])[C@@]2(C([H])([H])[H])[C@]13[H]
+INFO:edm_3d.generation.sampler:Generating 1 molecules with 9 atoms on cuda
+INFO:edm_3d.generation.sampler:✓ Generation complete
+
+---------------------------------------------------------------------------
+ValueError                                Traceback (most recent call last)
+Cell In[10], line 2
+      1 # Generate with intermediate steps
+----> 2 coords_trajectory, atoms_trajectory = sampler.sample_with_trajectory(
+      3     num_molecules=1,
+      4     num_atoms=9,
+      5     save_every=100  # Save every 100 steps
+      6 )
+      8 # Animate denoising
+      9 visualization.animate_diffusion(
+     10     coords_trajectory,
+     11     atoms_trajectory,
+     12     save_path='../results/edm_3d/generation_animation.gif'
+     13 )
+
+ValueError: too many values to unpack (expected 2)
