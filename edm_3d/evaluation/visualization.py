@@ -181,17 +181,9 @@ def visualize_diffusion_steps(coords_list, atoms_list, timesteps, title_prefix="
 
 
 def animate_diffusion(coords_trajectory, atoms_trajectory, save_path=None):
-    """
-    Create animation of diffusion process
-
-    Args:
-        coords_trajectory: List of coordinate tensors at different timesteps
-        atoms_trajectory: List of atom type tensors at different timesteps
-        save_path: Path to save animation (optional)
-    """
+    """Create animation of diffusion process"""
     print(f"Animation with {len(coords_trajectory)} frames")
 
-    # Show key frames for now
     n_frames = len(coords_trajectory)
     key_frame_indices = [0, n_frames // 4, n_frames // 2, 3 * n_frames // 4, n_frames - 1]
 
@@ -201,9 +193,10 @@ def animate_diffusion(coords_trajectory, atoms_trajectory, save_path=None):
         coords = coords_trajectory[frame_idx]
         atoms = atoms_trajectory[frame_idx]
 
-        # Handle batched data
+        # Handle batched data - extract first molecule
         if coords.ndim == 3:
-            coords = coords[0]  # Take first molecule
+            coords = coords[0]
+        if atoms.ndim == 2:
             atoms = atoms[0]
 
         plot_3d_molecule(coords, atoms, ax=axes[idx], title=f"Step {frame_idx}")
@@ -213,7 +206,6 @@ def animate_diffusion(coords_trajectory, atoms_trajectory, save_path=None):
 
     if save_path:
         print(f"Would save animation to: {save_path}")
-        # TODO: Implement actual animation saving with matplotlib.animation
 
 
 def plot_molecule_grid(coords_batch, atoms_batch, n_cols=4, titles=None):

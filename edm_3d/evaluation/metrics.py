@@ -131,3 +131,85 @@ def coords_to_mol(coords, atom_types):
         return mol.GetMol()
     except:
         return None
+
+
+def extract_molecular_properties(dataset):
+    """Extract properties from training dataset"""
+    properties = {
+        'num_atoms': [],
+        'num_bonds': [],
+        'avg_bond_length': [],
+        'molecular_weight': [],
+        'radius_of_gyration': [],
+    }
+
+    for i in range(min(1000, len(dataset))):
+        mol_data = dataset[i]
+        coords = mol_data['coords'].cpu().numpy()
+        atom_types = mol_data['atom_types'].cpu().numpy()
+
+        properties['num_atoms'].append(len(coords))
+
+        # Compute bonds and bond lengths
+        bonds = []
+        bond_lengths = []
+        for i in range(len(coords)):
+            for j in range(i + 1, len(coords)):
+                dist = np.linalg.norm(coords[i] - coords[j])
+                if 0.8 < dist < 1.8:
+                    bonds.append((i, j))
+                    bond_lengths.append(dist)
+
+        properties['num_bonds'].append(len(bonds))
+        properties['avg_bond_length'].append(np.mean(bond_lengths) if bond_lengths else 0)
+
+        # Radius of gyration
+        centroid = coords.mean(axis=0)
+        rog = np.sqrt(np.mean(np.sum((coords - centroid) ** 2, axis=1)))
+        properties['radius_of_gyration'].append(rog)
+
+        # Molecular weight (approximate)
+        weights = {0: 1.0, 1: 12.0, 2: 14.0, 3: 16.0, 4: 19.0}
+        mw = sum(weights.get(int(at), 12.0) for at in atom_types)
+        properties['molecular_weight'].append(mw)
+
+    return properties
+
+
+def extract_molecular_properties_from_tensors(coords, atom_types):
+    """Extract properties from generated molecules"""
+    properties = {
+        'num_atoms': [],
+        'num_bonds': [],
+        'avg_bond_length': [],
+        'molecular_weight': [],
+        'radius_of_gyration': [],
+    }
+
+    coords_np = coords.cpu().numpy() if torch.is_tensor(coords) else coords
+    atoms_np = atom_types.cpu().numpy() if torch.is_tensor(atom_types) else atom_types
+
+    for mol_coords, mol_atoms in zip(coords_np, atoms_np):
+        properties['num_atoms'].append(len(mol_coords))
+
+        bonds = []
+        bond_lengths = []
+        for i in range(len(mol_coords)):
+            for j in range(i + 1, len(mol_coords)):
+                dist = np.linalg.norm(mol_coords[i] - mol_coords[j])
+                if 0.8 < dist < 1.8:
+                    bonds.append((i, j))
+                    bond_lengths.append(dist)
+
+        properties['num_bonds'].append(len(bonds))
+        properties['avg_bond_length'].append(np.mean(bond_lengths) if bond_lengths else 0)
+
+        centroid = mol_coords.mean(axis=0)
+        rog = np.sqrt(np.mean(np.sum((mol_coords - centroid) ** 2, axis=1)))
+        properties['radius_of_gyration'].append(rog)
+
+        weights = {0: 1.0, 1: 12.0, 2: 14.0, 3: 16.0, 4: 19.0}
+        mw = sum(weights.get(int(at), 12.0) for at in mol_atoms)
+        properties['molecular_weight'].append(mw)
+
+    return properties
