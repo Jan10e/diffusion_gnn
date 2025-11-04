@@ -1,26 +1,28 @@
 ---------------------------------------------------------------------------
-AttributeError                            Traceback (most recent call last)
-Cell In[11], line 10
-      2 coords, atoms, trajectory = sampler.sample_with_trajectory(  # 3 values!
-      3     num_molecules=1,
-      4     num_atoms=9,
-      5     save_every=10,  # Changed to 10 (you have 100 steps total)
-      6     device=model.device
-      7 )
-      9 # Animate denoising
----> 10 visualization.animate_diffusion(
-     11     trajectory,  # Use trajectory, not coords_trajectory
-     12     trajectory,  # trajectory contains both coords and atoms as tuples
-     13     save_path='../experiments/results/edm_3d/generation_animation.gif'
-     14 )
-     16 # Show key frames - adjusted for 100 diffusion steps
-     17 timesteps_to_show = [0, 20, 40, 60, 80, 99]  # Changed from [0, 200, 400, 600, 800, 1000]
+TypeError                                 Traceback (most recent call last)
+Cell In[12], line 14
+     11 atoms_trajectory = [item[1] for item in trajectory]
+     13 # Animate denoising
+---> 14 visualization.animate_diffusion(
+     15     coords_trajectory,
+     16     atoms_trajectory,
+     17     save_path='../experiments/results/edm_3d/generation_animation.gif'
+     18 )
+     20 # Show key frames
+     21 timesteps_to_show = [0, 20, 40, 60, 80, 99]
 
-File ~/Projects/diffusion_gnn/edm_3d/evaluation/visualization.py:205, in animate_diffusion(coords_trajectory, atoms_trajectory, save_path)
-    202 atoms = atoms_trajectory[frame_idx]
-    204 # Handle batched data
---> 205 if coords.ndim == 3:
-    206     coords = coords[0]  # Take first molecule
-    207     atoms = atoms[0]
+File ~/Projects/diffusion_gnn/edm_3d/evaluation/visualization.py:209, in animate_diffusion(coords_trajectory, atoms_trajectory, save_path)
+    206         coords = coords[0]  # Take first molecule
+    207         atoms = atoms[0]
+--> 209     plot_3d_molecule(coords, atoms, ax=axes[idx], title=f"Step {frame_idx}")
+    211 plt.tight_layout()
+    212 plt.show()
 
-AttributeError: 'tuple' object has no attribute 'ndim'
+File ~/Projects/diffusion_gnn/edm_3d/evaluation/visualization.py:31, in plot_3d_molecule(coords, atom_types, ax, title)
+     29 # Plot atoms
+     30 for coord, atom_type in zip(coords_np, atom_types_np):
+---> 31     atom_symbol = atom_map.get(int(atom_type), 'C')
+     32     color = colors[atom_symbol]
+     33     ax.scatter(*coord, c=color, s=500, alpha=0.8, edgecolors='black', linewidths=2)
+
+TypeError: only length-1 arrays can be converted to Python scalars
